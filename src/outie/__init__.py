@@ -1,6 +1,6 @@
 """Turns every face of a mesh to point out, even when the mesh is not closed.
 
-A port of libigl's reorient_facets_raycast, the reference code for Takayama, Jacobson, Kavan and
+A port of libigl's reorient_facets_raycast at commit 7100764, the reference code for Takayama, Jacobson, Kavan and
 Sorkine-Hornung, "A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray
 Casting", 2014. Faces that share edges are gathered into patches that agree. Then rays are shot from
 random points on each patch, spread by area, off its front and its back; the side from which more rays

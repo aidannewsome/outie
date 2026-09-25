@@ -35,4 +35,4 @@ The paper's settings are keyword arguments with libigl's defaults: `rays_total`,
 
 ## Licence
 
-MPL-2.0, as libigl is: this is a port of its code. The method is its authors'. See PORTING.md for how.
+MPL-2.0, as libigl is: this is a port of its code, taken at libigl commit 7100764. The method is its authors'.
