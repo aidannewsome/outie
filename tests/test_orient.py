@@ -128,3 +128,13 @@ def test_closed_by_volume():
     assert all(outward(outie.orient(box(), closed_by_volume=True, rays_total=0, rays_minimum=0), centre))  # no rays at all
     out = outie.orient(courtyard(), closed_by_volume=True)  # open pieces still go to the vote
     assert normal(out[0])[1] < 0 and normal(out[1])[1] > 0
+
+
+def test_ground_occluder():
+    """A step standing on the ground: alone, its underside is as open as its top; with the ground given, it faces up."""
+    tread = quad([0, 0, 1], [2, 0, 1], [2, 1, 1], [0, 1, 1])[::-1]  # wound to face down: wrong
+    riser = quad([0, 0, 0], [2, 0, 0], [2, 0, 1], [0, 0, 1])
+    ground = quad([-50, -50, 0], [50, -50, 0], [50, 50, 0], [-50, 50, 0])
+    out = outie.orient([tread, riser], occluders=[ground])
+    assert normal(out[0])[2] > 0  # the tread faces up
+    assert normal(out[1])[1] < 0  # the riser faces out

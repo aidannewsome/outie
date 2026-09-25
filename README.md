@@ -31,9 +31,10 @@ faces, patch = outie.bfs_orient(faces)                         # faces wound to 
 ```
 
 The paper's settings are keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`,
-`facet_wise`, `use_parity`, and `seed` so a run repeats. One addition, off by default:
-`closed_by_volume` settles a patch that is a closed surface by its signed volume, which is exact, and
-shoots rays only for the rest.
+`facet_wise`, `use_parity`, and `seed` so a run repeats. Two additions, off unless asked for:
+`closed_by_volume` settles a patch that is a closed surface by its signed volume, which is exact, and shoots
+rays only for the rest; `occluders` are faces that block rays but are never turned, for the ground a model
+stands on or the things around it, since a model with no floor is otherwise as open below as above.
 
 ## Licence
 

@@ -17,22 +17,26 @@ GRAZING = 0.1  # a ray closer than this to lying in its face is drawn again
 EPSILON = 1e-4  # how far along itself a ray starts, so it does not hit its own face
 
 
-def orient(polygons, **settings):
-    """Polygons, each an n by 3 ring, with those that pointed in turned round."""
+def orient(polygons, occluders=(), **settings):
+    """Polygons, each an n by 3 ring, with those that pointed in turned round.
+
+    occluders are polygons that block rays but are not turned: the ground a model stands on, or its neighbours.
+    """
     triangles, owner = triangulate(polygons)
     if not len(triangles):
         return [np.asarray(p) for p in polygons]
     corners = triangles.reshape(-1, 3)
     vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
     faces = np.asarray(inverse).reshape(-1, 3)
-    flip, _ = reorient_facets_raycast(vertices, faces, **settings)
+    blocking, _ = triangulate(occluders)
+    flip, _ = reorient_facets_raycast(vertices, faces, occluders=blocking, **settings)
     turned = np.zeros(len(polygons), dtype=bool)
     np.logical_or.at(turned, owner, flip)
     return [np.asarray(p)[::-1] if t else np.asarray(p) for p, t in zip(polygons, turned)]
 
 
 def orient_mesh(vertices, faces, **settings):
-    """Triangles, m by 3 into vertices n by 3, with those that pointed in turned round."""
+    """Triangles, m by 3 into vertices n by 3, with those that pointed in turned round. occluders, if given, are triangles as corners, k by 3 by 3."""
     faces = np.asarray(faces, dtype=int)
     flip, _ = reorient_facets_raycast(vertices, faces, **settings)
     out = faces.copy()
@@ -40,11 +44,13 @@ def orient_mesh(vertices, faces, **settings):
     return out
 
 
-def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, closed_by_volume=False):
+def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, closed_by_volume=False, occluders=()):
     """libigl's function and outputs: per triangle, whether to turn it, and the patch it belongs to.
 
-    closed_by_volume is not in libigl: a patch whose every edge exactly two faces share is a closed surface, and
-    its signed volume says which way it faces exactly, with no rays. Off by default so the defaults are the paper's.
+    Two additions libigl does not have, both off unless asked for. closed_by_volume: a patch whose every edge
+    exactly two faces share is a closed surface, and its signed volume says which way it faces exactly, with no
+    rays. occluders: triangles as corners, k by 3 by 3, that rays can hit but that are never turned, for the
+    ground a model stands on or the things around it; without them a model with no floor is as open below as above.
     """
     V = np.asarray(vertices, dtype=float)
     F = np.asarray(faces, dtype=int)
@@ -81,7 +87,10 @@ def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, f
     weights = np.column_stack([1 - root, (1 - s) * root, s * root])
     origins = np.einsum("ri,rik->rk", weights, V[FF[t]])
     d = random_directions(normals[t] / double_area[t, None], rng)
-    mesh = trimesh.Trimesh(vertices=V, faces=FF, process=False)
+    blocking = np.asarray(occluders, dtype=float).reshape(-1, 3, 3)
+    scene_vertices = np.vstack([V, blocking.reshape(-1, 3)]) if len(blocking) else V
+    scene_faces = np.vstack([FF, len(V) + np.arange(3 * len(blocking)).reshape(-1, 3)]) if len(blocking) else FF
+    mesh = trimesh.Trimesh(vertices=scene_vertices, faces=scene_faces, process=False)
     by = patch[t]
     if use_parity:
         front = np.bincount(by, weights=parity(mesh, origins, d), minlength=patches)
