@@ -15,15 +15,19 @@ def quad(*corners):
 
 
 def box():
-    """A unit box with two faces wound inward."""
+    """A unit box with two faces wound inward, the floor and the south wall."""
     return [
-        quad([0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0])[::-1],  # floor, wrong
+        quad([0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]),  # floor, wound to face up: wrong
         quad([0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]),  # roof
-        quad([0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]),  # south, wrong
+        quad([0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1])[::-1],  # south, wound to face north: wrong
         quad([1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]),  # east
         quad([1, 1, 0], [0, 1, 0], [0, 1, 1], [1, 1, 1]),  # north
         quad([0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]),  # west
     ]
+
+
+def outward(faces, centre):
+    return [np.dot(normal(f), np.asarray(f).mean(axis=0) - centre) > 0 for f in faces]
 
 
 def open_box():
@@ -58,9 +62,9 @@ def fins():
 
 
 def test_box():
-    out = outie.orient(box())
     centre = np.array([0.5, 0.5, 0.5])
-    assert all(np.dot(normal(f), f.mean(axis=0) - centre) > 0 for f in out)
+    assert outward(box(), centre).count(False) == 2  # the fixture really has two faces wrong
+    assert all(outward(outie.orient(box()), centre))
 
 
 def test_open_box():
