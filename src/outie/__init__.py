@@ -75,13 +75,9 @@ def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, f
         settled = closed(FF, patch, patches) & (np.abs(volume) > 1e-9 * np.maximum(area, 1e-300))
         vote[settled] = volume[settled] < 0
         rays[settled] = 0
-    chosen = []  # rays start on triangles chosen by area within their patch, at random points on them, Turk 1990
-    for p in np.flatnonzero(rays):
-        mine = np.flatnonzero(patch == p)
-        chosen.append(rng.choice(mine, size=rays[p], p=double_area[mine] / double_area[mine].sum()))
-    if not chosen:
+    if not rays.any():
         return vote[patch] ^ np.any(FF != F, axis=1), patch
-    t = np.concatenate(chosen)
+    t = sample(patch, double_area, rays, rng)  # rays start on triangles chosen by area within their patch, at random points on them, Turk 1990
     s, u = rng.random(len(t)), rng.random(len(t))
     root = np.sqrt(u)
     weights = np.column_stack([1 - root, (1 - s) * root, s * root])
@@ -125,18 +121,27 @@ def signed_volumes(V, FF, patch, patches):
     return np.bincount(patch, weights=np.einsum("ij,ij->i", a, np.cross(b, c)), minlength=patches)
 
 
+def sample(patch, double_area, rays, rng):
+    """The triangle each ray starts on: rays[p] of them in patch p, each triangle as likely as its area."""
+    order = np.argsort(patch, kind="stable")
+    grouped = patch[order]
+    reach = np.cumsum(double_area[order])
+    first = np.searchsorted(grouped, np.arange(len(rays)))
+    last = np.searchsorted(grouped, np.arange(len(rays)), side="right") - 1
+    below = np.where(first > 0, reach[first - 1], 0.0)
+    p = np.repeat(np.arange(len(rays)), rays)
+    target = below[p] + rng.random(len(p)) * (reach[last[p]] - below[p])
+    picked = np.clip(np.searchsorted(reach, target, side="right"), first[p], last[p])
+    return order[picked]
+
+
 def first_hits(mesh, origins, directions):
     """Per ray: 1 when it escapes to infinity else 0, and how far it travels before its first hit else 0."""
-    where, ray, _ = mesh.ray.intersects_location(origins + directions * EPSILON, directions, multiple_hits=False)
+    where, ray, _ = mesh.ray.intersects_location(origins + directions * EPSILON, directions, multiple_hits=False)  # the nearest hit per ray
     escaped = np.ones(len(origins))
     distance = np.zeros(len(origins))
-    if len(ray):
-        far = np.linalg.norm(where - origins[ray], axis=1)
-        order = np.lexsort((far, ray))  # nearest hit per ray first
-        ray, far = ray[order], far[order]
-        first = np.concatenate([[True], ray[1:] != ray[:-1]])
-        escaped[ray[first]] = 0
-        distance[ray[first]] = far[first]
+    escaped[ray] = 0
+    distance[ray] = np.linalg.norm(where - origins[ray], axis=1)
     return escaped, distance
 
 
@@ -204,32 +209,73 @@ def shares_directed_edge(f, n):
 
 
 def triangulate(polygons):
-    """Every polygon as triangles wound as it is, and the polygon each came from."""
+    """Every polygon as triangles wound as it is, and the polygon each came from.
+
+    Every triangle agrees with its polygon's own normal, so a polygon is one consistent piece whatever its shape: a
+    quad is split along the diagonal that lies inside it, and a longer ring is triangulated in its plane after
+    mending, since a ring that touches or crosses itself, as a ring with a hole cut into it does, would otherwise
+    fan into triangles wound both ways. A polygon with no area gives no triangles.
+    """
+    rings = [np.asarray(f, dtype=float) for f in polygons]
     out, owner = [], []
-    for k, f in enumerate(polygons):
-        f = np.asarray(f, dtype=float)
-        if len(f) < 3:
-            continue
-        if len(f) <= 4:
-            out += [np.stack([f[0], f[i], f[i + 1]]) for i in range(1, len(f) - 1)]
-            owner += [k] * (len(f) - 2)
-            continue
-        normal = np.cross(f, np.roll(f, -1, axis=0)).sum(axis=0)
-        drop = int(np.argmax(np.abs(normal)))
-        keep = [i for i in range(3) if i != drop]
-        flat = shapely.Polygon(f[:, keep])
-        if not flat.is_valid or flat.area == 0:
-            out += [np.stack([f[0], f[i], f[i + 1]]) for i in range(1, len(f) - 1)]
-            owner += [k] * (len(f) - 2)
-            continue
-        lookup = {tuple(np.round(v[keep], 6)): v for v in f}
-        for t in shapely.get_parts(shapely.constrained_delaunay_triangles(flat)):
-            corners = [lookup.get(tuple(np.round(c, 6))) for c in np.asarray(t.exterior.coords)[:3]]
-            if any(c is None for c in corners):
+    quads = [k for k, f in enumerate(rings) if len(f) == 4]
+    if quads:
+        q = np.stack([rings[k] for k in quads])
+        normal = np.cross(q, np.roll(q, -1, axis=1)).sum(axis=1)
+        first = np.stack([q[:, [0, 1, 2]], q[:, [0, 2, 3]]], axis=1)  # split along 0-2
+        second = np.stack([q[:, [1, 2, 3]], q[:, [1, 3, 0]]], axis=1)  # split along 1-3
+        agree = np.einsum("qtk,qk->qt", np.cross(first[:, :, 1] - first[:, :, 0], first[:, :, 2] - first[:, :, 0]), normal) > 0
+        split = np.where(agree.all(axis=1)[:, None, None, None], first, second)  # the diagonal inside a dart is the one both halves agree on
+        has_area = np.linalg.norm(normal, axis=1) > 0
+        out += list(split[has_area].reshape(-1, 3, 3))
+        owner += np.repeat(np.asarray(quads)[has_area], 2).tolist()
+    rest = [k for k, f in enumerate(rings) if len(f) >= 3 and len(f) != 4]
+    if rest:
+        triangles = [k for k in rest if len(rings[k]) == 3]
+        out += [rings[k] for k in triangles]
+        owner += triangles
+        longer = [k for k in rest if len(rings[k]) > 4]
+        for k, normal in zip(longer, newell([rings[k] for k in longer])):
+            if not np.linalg.norm(normal):
                 continue
-            tri = np.stack(corners)
-            if np.dot(np.cross(tri[1] - tri[0], tri[2] - tri[0]), normal) < 0:
-                tri = tri[::-1]
-            out.append(tri)
-            owner.append(k)
+            pieces = in_plane(rings[k], normal)
+            against = np.cross(pieces[:, 1] - pieces[:, 0], pieces[:, 2] - pieces[:, 0]) @ normal < 0
+            pieces[against] = pieces[against][:, ::-1]
+            out += list(pieces)
+            owner += [k] * len(pieces)
     return (np.array(out), np.array(owner)) if out else (np.zeros((0, 3, 3)), np.zeros(0, int))
+
+
+def newell(rings):
+    """Each ring's normal, twice its area long, by Newell's method, for every ring at once."""
+    if not rings:
+        return np.zeros((0, 3))
+    corners = np.concatenate(rings)
+    starts = np.cumsum([0, *map(len, rings)])
+    following = np.arange(1, len(corners) + 1)
+    following[starts[1:] - 1] = starts[:-1]  # each ring's last corner is followed by its first
+    return np.add.reduceat(np.cross(corners, corners[following]), starts[:-1], axis=0)
+
+
+def in_plane(f, normal):
+    """A ring of five or more corners as triangles: mended where it touches or crosses itself, then a constrained
+    Delaunay triangulation in the plane it lies flattest in. Corners the mending adds are lifted back onto that plane."""
+    drop = int(np.argmax(np.abs(normal)))
+    keep = [i for i in range(3) if i != drop]
+    flat = shapely.Polygon(f[:, keep])
+    if not flat.is_valid:
+        flat = shapely.make_valid(flat, method="structure", keep_collapsed=False)
+    parts = [p for p in shapely.get_parts(flat) if p.geom_type == "Polygon" and p.area > 0]
+    if not parts:
+        return np.stack([np.stack([f[0], f[i], f[i + 1]]) for i in range(1, len(f) - 1)])
+    corners = np.concatenate([shapely.get_coordinates(shapely.constrained_delaunay_triangles(p)).reshape(-1, 4, 2)[:, :3] for p in parts])
+    lifted = np.empty((*corners.shape[:2], 3))
+    lifted[:, :, keep] = corners
+    lifted[:, :, drop] = (np.dot(normal, f[0]) - corners @ normal[keep]) / normal[drop]
+    keys = np.round(f[:, keep], 6) @ [1, 1j]  # each corner of the ring as one number, to find it among the triangles' corners
+    order = np.argsort(keys)
+    at = np.searchsorted(keys[order], (np.round(corners, 6) @ [1, 1j]).reshape(-1))
+    at = np.clip(at, 0, len(keys) - 1)
+    known = keys[order][at] == (np.round(corners, 6) @ [1, 1j]).reshape(-1)
+    lifted.reshape(-1, 3)[known] = f[order[at[known]]]  # a corner of the ring keeps its own height, off the plane or not
+    return lifted

@@ -130,6 +130,46 @@ def test_closed_by_volume():
     assert normal(out[0])[1] < 0 and normal(out[1])[1] > 0
 
 
+def keyhole_roof():
+    """Four walls, no floor, and a roof with a courtyard cut into it as one ring that runs in through a slit: the
+    roof wound wrong, and the courtyard walls wound wrong too."""
+    o, i = 0.0, 10.0
+    outer = [(0, 0), (30, 0), (30, 30), (0, 30)]
+    inner = [(10, 10), (10, 20), (20, 20), (20, 10)]  # the other way round, as a hole runs
+    ring = [*outer, (0, 0), (10, 10), *inner[1:], (10, 10)]
+    roof = np.array([(x, y, 9.0) for x, y in ring])[::-1]
+    walls = [quad([0, 0, 0], [30, 0, 0], [30, 0, 9], [0, 0, 9]), quad([30, 0, 0], [30, 30, 0], [30, 30, 9], [30, 0, 9]), quad([30, 30, 0], [0, 30, 0], [0, 30, 9], [30, 30, 9]), quad([0, 30, 0], [0, 0, 0], [0, 0, 9], [0, 30, 9])]
+    court = [quad([10, 10, 0], [20, 10, 0], [20, 10, 9], [10, 10, 9]), quad([20, 10, 0], [20, 20, 0], [20, 20, 9], [20, 10, 9]), quad([20, 20, 0], [10, 20, 0], [10, 20, 9], [20, 20, 9]), quad([10, 20, 0], [10, 10, 0], [10, 10, 9], [10, 20, 9])]
+    return [roof, *walls, *[c[::-1] for c in court]]
+
+
+def test_keyhole_roof():
+    """A ring with a hole cut into it is one piece: its triangles agree, and it comes out facing up with its walls."""
+    tris, owner = outie.triangulate([keyhole_roof()[0]])
+    assert np.all(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])[:, 2] < 0)  # all wound as the ring is
+    assert abs(np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1).sum() / 2 - 800) < 1e-6  # and cover its area
+    out = outie.orient(keyhole_roof())
+    assert normal(out[0])[2] > 0  # the roof faces up
+    assert normal(out[5])[1] > 0  # the courtyard's south wall faces north, into the court
+
+
+def test_dart_quad():
+    """A quad with a reflex corner splits along the diagonal inside it, so both halves agree with the quad."""
+    dart = quad([0, 0, 0], [10, 4, 0], [20, 0, 0], [10, 10, 0])
+    tris, _ = outie.triangulate([dart])
+    signs = np.sign(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])[:, 2])
+    assert len(tris) == 2 and signs[0] == signs[1] == 1
+    assert abs(np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1).sum() / 2 - 60) < 1e-9
+
+
+def test_no_area():
+    """A collapsed polygon gives no triangles and passes through orient untouched."""
+    flat = quad([0, 0, 0], [0, 0, 0], [0, 0, 1], [0, 0, 1])
+    tris, owner = outie.triangulate([flat, *box()])
+    assert 0 not in owner
+    assert np.array_equal(outie.orient([flat, *box()])[0], flat)
+
+
 def test_ground_occluder():
     """A step standing on the ground: alone, its underside is as open as its top; with the ground given, it faces up."""
     tread = quad([0, 0, 1], [2, 0, 1], [2, 1, 1], [0, 1, 1])[::-1]  # wound to face down: wrong
