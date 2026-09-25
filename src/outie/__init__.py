@@ -30,8 +30,8 @@ def orient(polygons, occluders=(), **settings):
     faces = np.asarray(inverse).reshape(-1, 3)
     blocking, _ = triangulate(occluders)
     flip, _ = reorient_facets_raycast(vertices, faces, occluders=blocking, **settings)
-    turned = np.zeros(len(polygons), dtype=bool)
-    np.logical_or.at(turned, owner, flip)
+    area = np.linalg.norm(np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]), axis=1)
+    turned = np.bincount(owner, weights=area * flip, minlength=len(polygons)) > np.bincount(owner, weights=area, minlength=len(polygons)) / 2  # a polygon turns with the greater part of its area, not with a sliver of it
     return [np.asarray(p)[::-1] if t else np.asarray(p) for p, t in zip(polygons, turned)]
 
 
