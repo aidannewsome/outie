@@ -31,7 +31,9 @@ faces, patch = outie.bfs_orient(faces)                         # faces wound to 
 ```
 
 The paper's settings are keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`,
-`facet_wise`, `use_parity`, and `seed` so a run repeats.
+`facet_wise`, `use_parity`, and `seed` so a run repeats. One addition, off by default:
+`closed_by_volume` settles a patch that is a closed surface by its signed volume, which is exact, and
+shoots rays only for the rest.
 
 ## Licence
 
