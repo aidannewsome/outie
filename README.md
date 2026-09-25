@@ -21,9 +21,17 @@ polygons = outie.orient(polygons)              # a list of rings, each n by 3
 faces = outie.orient_mesh(vertices, faces)     # triangles: vertices n by 3, faces m by 3
 ```
 
-Both return what they were given, with the faces that pointed in turned round. The paper's settings are
-keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`, `facet_wise`, `use_parity`, and
-`seed` so a run repeats.
+Both return what they were given, with the faces that pointed in turned round. Underneath are libigl's
+own two functions, with its names, arguments and outputs, for callers who need to know which faces moved
+or which patch each belongs to:
+
+```python
+flip, patch = outie.reorient_facets_raycast(vertices, faces)   # per triangle: turn it? and its patch
+faces, patch = outie.bfs_orient(faces)                         # faces wound to agree, and their patches
+```
+
+The paper's settings are keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`,
+`facet_wise`, `use_parity`, and `seed` so a run repeats.
 
 ## Licence
 

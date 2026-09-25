@@ -87,6 +87,10 @@ def test_triangles_match_polygons():
     vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
     rings = np.asarray(inverse).reshape(-1).reshape(len(faces), 4)
     triangles = np.vstack([[[r[0], r[1], r[2]], [r[0], r[2], r[3]]] for r in rings])
+    flip, patch = outie.reorient_facets_raycast(vertices, triangles)
+    assert flip.dtype == bool and flip.shape == (12,)
+    assert patch.max() == 0  # one closed box, one patch
+    assert flip.sum() == 4  # the two wrong quads, two triangles each
     fixed = outie.orient_mesh(vertices, triangles)
     centre = np.array([0.5, 0.5, 0.5])
     for tri in vertices[fixed]:

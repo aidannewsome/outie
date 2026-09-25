@@ -25,7 +25,7 @@ def orient(polygons, **settings):
     corners = triangles.reshape(-1, 3)
     vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
     faces = np.asarray(inverse).reshape(-1, 3)
-    flip = flips(vertices, faces, **settings)
+    flip, _ = reorient_facets_raycast(vertices, faces, **settings)
     turned = np.zeros(len(polygons), dtype=bool)
     np.logical_or.at(turned, owner, flip)
     return [np.asarray(p)[::-1] if t else np.asarray(p) for p, t in zip(polygons, turned)]
@@ -34,18 +34,18 @@ def orient(polygons, **settings):
 def orient_mesh(vertices, faces, **settings):
     """Triangles, m by 3 into vertices n by 3, with those that pointed in turned round."""
     faces = np.asarray(faces, dtype=int)
-    flip = flips(vertices, faces, **settings)
+    flip, _ = reorient_facets_raycast(vertices, faces, **settings)
     out = faces.copy()
     out[flip] = out[flip][:, ::-1]
     return out
 
 
-def flips(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0):
-    """Per triangle, whether it should be turned, by the paper's vote with libigl's defaults."""
+def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0):
+    """libigl's function and outputs: per triangle, whether to turn it, and the patch it belongs to."""
     V = np.asarray(vertices, dtype=float)
     F = np.asarray(faces, dtype=int)
     if not len(F):
-        return np.zeros(0, dtype=bool)
+        return np.zeros(0, dtype=bool), np.zeros(0, dtype=int)
     rays_total = len(F) * 100 if rays_total is None else rays_total
     rng = np.random.default_rng(seed)
     if facet_wise:
@@ -63,7 +63,7 @@ def flips(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, u
         mine = np.flatnonzero(patch == p)
         chosen.append(rng.choice(mine, size=rays[p], p=double_area[mine] / double_area[mine].sum()))
     if not chosen:
-        return np.zeros(len(F), dtype=bool)
+        return np.zeros(len(F), dtype=bool), patch
     t = np.concatenate(chosen)
     s, u = rng.random(len(t)), rng.random(len(t))
     root = np.sqrt(u)
@@ -82,7 +82,7 @@ def flips(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, u
         escaped = np.bincount(by, weights=front_escaped, minlength=patches), np.bincount(by, weights=back_escaped, minlength=patches)
         distance = np.bincount(by, weights=front_distance, minlength=patches), np.bincount(by, weights=back_distance, minlength=patches)
         vote = (escaped[0] < escaped[1]) | ((escaped[0] == escaped[1]) & (distance[0] < distance[1]))
-    return vote[patch] ^ np.any(FF != F, axis=1)  # a face bfs_orient already turned is reported the other way round
+    return vote[patch] ^ np.any(FF != F, axis=1), patch  # a face bfs_orient already turned is reported the other way round
 
 
 def first_hits(mesh, origins, directions):
@@ -121,8 +121,9 @@ def random_directions(normals, rng):
     return d
 
 
-def bfs_orient(F):
-    """Faces wound to agree with their neighbours across the edges exactly two share, and the patch each belongs to."""
+def bfs_orient(faces):
+    """libigl's bfs_orient: faces wound to agree with their neighbours across the edges exactly two share, and the patch each belongs to."""
+    F = np.asarray(faces, dtype=int)
     edges = np.sort(np.concatenate([F[:, [1, 2]], F[:, [2, 0]], F[:, [0, 1]]]), axis=1)
     _, inverse, count = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
     inverse = np.asarray(inverse).reshape(-1)
