@@ -21,7 +21,6 @@ Reference = "https://github.com/libigl/libigl/blob/main/include/igl/embree/reori
 [dependency-groups]
 dev = [
     "pytest>=8",
-    "scipy>=1.17.1",
 ]
 
 [build-system]

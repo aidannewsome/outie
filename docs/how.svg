@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 260" width="720" height="260" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="13" fill="none" stroke="#222" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#222" stroke="none"/></marker>
+    <marker id="b" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b5533c" stroke="none"/></marker>
+  </defs>
+  <!-- a building in section: a wall with fins in front, an overhanging roof, a back wall -->
+  <g transform="translate(40,30)">
+    <path d="M60,20 H300 V180 H60 Z" fill="#eee9e0" stroke="none"/>
+    <path d="M60,20 H300" />
+    <path d="M300,20 V180" />
+    <path d="M60,180 H300" />
+    <path d="M60,20 V180" stroke="#b5533c" stroke-width="3"/>
+    <text x="64" y="200" fill="#b5533c" stroke="none">the wall to decide</text>
+    <!-- overhang and fins -->
+    <path d="M20,20 H60" />
+    <path d="M40,20 V180" /><path d="M32,20 V180" stroke="#222" stroke-width="3" opacity="0.5"/>
+    <text x="-2" y="34" fill="#222" stroke="none" font-size="11">overhang</text>
+    <text x="0" y="196" fill="#222" stroke="none">fin</text>
+    <!-- rays off the front (out of the wall, leftwards): most escape -->
+    <g stroke="#b5533c" marker-end="url(#b)">
+      <path d="M58,60 L-30,40" /><path d="M58,90 L-30,100" /><path d="M58,120 L-30,150" /><path d="M58,70 L36,64" />
+    </g>
+    <text x="-30" y="-8" fill="#b5533c" stroke="none">front: 3 of 4 escape</text>
+    <!-- rays off the back (into the building): all hit -->
+    <g stroke="#222" marker-end="url(#a)">
+      <path d="M62,60 L190,20" /><path d="M62,90 L298,110" /><path d="M62,120 L200,178" /><path d="M62,140 L298,160" />
+    </g>
+    <text x="170" y="60" fill="#222" stroke="none">back: 0 of 4 escape</text>
+  </g>
+  <g transform="translate(430,30)" stroke="none" fill="#222">
+    <text x="0" y="16" font-weight="600">For every patch of faces that already agree</text>
+    <text x="0" y="44">1. Shoot rays from random points on it,</text>
+    <text x="0" y="62">   off the front and off the back.</text>
+    <text x="0" y="90">2. Count the rays that escape to infinity</text>
+    <text x="0" y="108">   from each side.</text>
+    <text x="0" y="136">3. The side that escapes more is outside.</text>
+    <text x="0" y="154">   Flip the patch if that is its back.</text>
+    <text x="0" y="182">A tie goes to the side whose rays</text>
+    <text x="0" y="200">travel further before hitting anything.</text>
+  </g>
+</svg>
