@@ -1,0 +1,25 @@
+# On a version tag, build the package and publish it to PyPI by trusted publishing: no token is stored anywhere.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: The tag must be the version in pyproject.toml
+        run: |
+          version=$(uv version --short)
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} is not v$version"; exit 1; }
+      - run: uv sync --dev
+      - run: uv run pytest -q
+      - run: uv build
+      - uses: pypa/gh-action-pypi-publish@release/v1
