@@ -133,7 +133,6 @@ def test_closed_by_volume():
 def keyhole_roof():
     """Four walls, no floor, and a roof with a courtyard cut into it as one ring that runs in through a slit: the
     roof wound wrong, and the courtyard walls wound wrong too."""
-    o, i = 0.0, 10.0
     outer = [(0, 0), (30, 0), (30, 30), (0, 30)]
     inner = [(10, 10), (10, 20), (20, 20), (20, 10)]  # the other way round, as a hole runs
     ring = [*outer, (0, 0), (10, 10), *inner[1:], (10, 10)]
