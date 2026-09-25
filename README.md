@@ -21,7 +21,12 @@ polygons = outie.orient(polygons)              # a list of rings, each n by 3
 faces = outie.orient_mesh(vertices, faces)     # triangles: vertices n by 3, faces m by 3
 ```
 
-Both return what they were given, with the faces that pointed in turned round. Underneath are libigl's
+Both return what they were given, with the faces that pointed in turned round. Polygons are cut into
+triangles first, each as one consistent piece: a ring that touches or crosses itself, as a ring with a hole cut
+into it does, is mended and triangulated in its plane, and a ring whose corners lie in no plane becomes the
+triangles of least area through them (Barequet and Sharir 1995), which follow a curved panel instead of
+fanning across it. `outie.bent(ring)` and `outie.least_area(ring)` are there for callers who split such rings
+themselves. Underneath are libigl's
 own two functions, with its names, arguments and outputs, for callers who need to know which faces moved
 or which patch each belongs to:
 
