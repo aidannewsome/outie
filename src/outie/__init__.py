@@ -168,10 +168,11 @@ def bfs_orient(faces):
     _, inverse, count = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
     inverse = np.asarray(inverse).reshape(-1)
     face_of = np.tile(np.arange(len(F)), 3)
-    neighbours = [[] for _ in range(len(F))]
     order = np.argsort(inverse, kind="stable")
-    for e in np.flatnonzero(count == 2):  # an edge with more than two faces is a seam and joins nothing
-        a, b = face_of[order[np.searchsorted(inverse[order], e) : np.searchsorted(inverse[order], e, side="right")]]
+    shared = count[inverse[order]] == 2  # the sorted edge list, kept where exactly two faces share the edge
+    pairs = face_of[order][shared].reshape(-1, 2)  # those edges' two faces, side by side
+    neighbours = [[] for _ in range(len(F))]
+    for a, b in pairs.tolist():
         neighbours[a].append(b)
         neighbours[b].append(a)
     FF = F.copy()
@@ -196,8 +197,10 @@ def bfs_orient(faces):
 
 def shares_directed_edge(f, n):
     """Whether two triangles run a shared edge the same way, which means one of them is wound against the other."""
-    mine = {(f[1], f[2]), (f[2], f[0]), (f[0], f[1])}
-    return any(pair in mine for pair in ((n[1], n[2]), (n[2], n[0]), (n[0], n[1])))
+    f0, f1, f2 = int(f[0]), int(f[1]), int(f[2])
+    n0, n1, n2 = int(n[0]), int(n[1]), int(n[2])
+    mine = {(f1, f2), (f2, f0), (f0, f1)}
+    return (n1, n2) in mine or (n2, n0) in mine or (n0, n1) in mine
 
 
 def triangulate(polygons):
