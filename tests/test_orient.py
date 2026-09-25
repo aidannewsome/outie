@@ -162,6 +162,22 @@ def test_dart_quad():
     assert abs(np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1).sum() / 2 - 60) < 1e-9
 
 
+def test_bent_ring():
+    """A twisted band, one long edge an arc and the other a different arc, triangulates as a strip across the band."""
+    s = np.linspace(0, np.pi / 2, 8)
+    outer = np.column_stack([100 * np.cos(s), 100 * np.sin(s), 30 * np.sin(2 * s)])
+    inner = np.column_stack([80 * np.cos(s), 80 * np.sin(s), 10 * np.sin(2 * s) + 5])[::-1]
+    ring = np.vstack([outer, inner])
+    assert outie.bent(ring)
+    tris, owner = outie.triangulate([ring])
+    assert len(tris) == len(ring) - 2 and (owner == 0).all()
+    spans = np.linalg.norm(tris - np.roll(tris, -1, axis=1), axis=2).max(axis=1)
+    assert spans.max() < 40  # every triangle steps across the band, none reaches along it
+    fan = np.array([np.stack([ring[0], ring[i], ring[i + 1]]) for i in range(1, len(ring) - 1)])
+    area = lambda t: np.linalg.norm(np.cross(t[:, 1] - t[:, 0], t[:, 2] - t[:, 0]), axis=1).sum() / 2
+    assert area(tris) < area(fan)
+
+
 def test_no_area():
     """A collapsed polygon gives no triangles and passes through orient untouched."""
     flat = quad([0, 0, 0], [0, 0, 0], [0, 0, 1], [0, 0, 1])

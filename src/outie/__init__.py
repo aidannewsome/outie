@@ -238,12 +238,58 @@ def triangulate(polygons):
         for k, normal in zip(longer, newell([rings[k] for k in longer])):
             if not np.linalg.norm(normal):
                 continue
-            pieces = in_plane(rings[k], normal)
-            against = np.cross(pieces[:, 1] - pieces[:, 0], pieces[:, 2] - pieces[:, 0]) @ normal < 0
-            pieces[against] = pieces[against][:, ::-1]
+            if bent(rings[k]):
+                pieces = least_area(rings[k])  # wound as the ring runs, since a bent ring has no normal to check against
+            else:
+                pieces = in_plane(rings[k], normal)
+                against = np.cross(pieces[:, 1] - pieces[:, 0], pieces[:, 2] - pieces[:, 0]) @ normal < 0
+                pieces[against] = pieces[against][:, ::-1]
             out += list(pieces)
             owner += [k] * len(pieces)
     return (np.array(out), np.array(owner)) if out else (np.zeros((0, 3, 3)), np.zeros(0, int))
+
+
+BEND = 1e-3  # a ring whose corners leave the flattest plane through them by more than this share of its size is bent
+
+
+def bent(f):
+    """Whether a ring's corners leave the plane that fits them best, in least squares, by more than BEND of the ring's size."""
+    centred = f - f.mean(axis=0)
+    size = np.linalg.norm(centred, axis=1).max()
+    if not size:
+        return False
+    _, _, axes = np.linalg.svd(centred, full_matrices=False)
+    return np.abs(centred @ axes[2]).max() > BEND * size
+
+
+def least_area(f):
+    """A ring as the triangles of least total area, Barequet and Sharir 1995: the surface a bent ring most nearly is.
+
+    Dynamic programming over the ring's corners: the best triangulation of the corners i to j is the best of
+    i to k and k to j with the triangle i, k, j, for every k between. Triangles run as the ring does.
+    """
+    n = len(f)
+    edge = f[None, :, :] - f[:, None, :]
+    area = np.linalg.norm(np.cross(edge[:, :, None, :], edge[:, None, :, :]), axis=3) / 2  # area[i, k, j] of triangle i, k, j
+    cost = np.zeros((n, n))
+    split = np.zeros((n, n), dtype=int)
+    for span in range(2, n):
+        for i in range(n - span):
+            j = i + span
+            k = np.arange(i + 1, j)
+            total = cost[i, k] + cost[k, j] + area[i, k, j]
+            best = int(np.argmin(total))
+            cost[i, j], split[i, j] = total[best], k[best]
+    triangles = []
+    pending = [(0, n - 1)]
+    while pending:
+        i, j = pending.pop()
+        if j - i < 2:
+            continue
+        k = split[i, j]
+        triangles.append(np.stack([f[i], f[k], f[j]]))
+        pending += [(i, k), (k, j)]
+    return np.array(triangles)
 
 
 def newell(rings):
