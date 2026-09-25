@@ -169,7 +169,7 @@ def bfs_orient(F, FF, C):
 
 
 # ---------------------------------------------------------------- reorient_facets_raycast.cpp
-def reorient_facets_raycast(V, F, rays_total, rays_minimum, facet_wise, use_parity, is_verbose, I, C):
+def reorient_facets_raycast(V, F, rays_total, rays_minimum, facet_wise, use_parity, is_verbose, I, C, seeded=False):
     assert F.shape[1] == 3
     assert V.shape[1] == 3
     m = F.shape[0]
@@ -203,7 +203,8 @@ def reorient_facets_raycast(V, F, rays_total, rays_minimum, facet_wise, use_pari
     rays_total = int(num_rays_per_component.sum())
     if is_verbose:
         print("generating rays... ", end="")
-    random.seed(time.time())  # prng.seed(time(nullptr))
+    if not seeded:
+        random.seed(time.time())  # prng.seed(time(nullptr))
     ray_face = []
     ray_ori = []
     ray_dir = []

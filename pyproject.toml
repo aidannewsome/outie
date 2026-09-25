@@ -19,7 +19,10 @@ Paper = "https://jcgt.org/published/0003/04/02/paper.pdf"
 Reference = "https://github.com/libigl/libigl/blob/main/include/igl/embree/reorient_facets_raycast.cpp"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "pytest>=8",
+    "scipy>=1.17.1",
+]
 
 [build-system]
 requires = ["hatchling"]
