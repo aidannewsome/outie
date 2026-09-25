@@ -22,11 +22,9 @@ faces = outie.orient_mesh(vertices, faces)     # triangles: vertices n by 3, fac
 ```
 
 Both return what they were given, with the faces that pointed in turned round. Polygons are cut into
-triangles first, each as one consistent piece: a ring that touches or crosses itself, as a ring with a hole cut
-into it does, is mended and triangulated in its plane, and a ring whose corners lie in no plane becomes the
-triangles of least area through them (Barequet and Sharir 1995), which follow a curved panel instead of
-fanning across it. `outie.bent(ring)` and `outie.least_area(ring)` are there for callers who split such rings
-themselves. Underneath are libigl's
+triangles first, each as one consistent piece, and a ring that touches or crosses itself, as a ring with a hole
+cut into it does, is mended before it is cut. Cleaning the mesh, dropping collapsed or doubled faces, splitting
+faces that are not flat, is the caller's job before calling. Underneath are libigl's
 own two functions, with its names, arguments and outputs, for callers who need to know which faces moved
 or which patch each belongs to:
 

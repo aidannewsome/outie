@@ -1,6 +1,6 @@
 [project]
 name = "outie"
-version = "0.1.5"
+version = "0.1.6"
 description = "Turn every face of a mesh to face out, like an outie, even when the mesh is not closed. A port of libigl's reorient_facets_raycast."
 readme = "README.md"
 license = "MPL-2.0"
