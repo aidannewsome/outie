@@ -106,3 +106,16 @@ def test_deterministic(seed):
     a = outie.orient(courtyard(), seed=seed)
     b = outie.orient(courtyard(), seed=seed)
     assert all(np.array_equal(x, y) for x, y in zip(a, b))
+
+
+def test_facet_wise():
+    """Every face judged alone still comes out right on a plain box."""
+    centre = np.array([0.5, 0.5, 0.5])
+    assert all(outward(outie.orient(box(), facet_wise=True), centre))
+
+
+def test_use_parity():
+    """The parity vote agrees with the escape vote on the courtyard."""
+    out = outie.orient(courtyard(), use_parity=True)
+    assert normal(out[0])[1] < 0
+    assert normal(out[1])[1] > 0
