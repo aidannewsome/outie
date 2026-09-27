@@ -121,15 +121,6 @@ def test_use_parity():
     assert normal(out[1])[1] > 0
 
 
-def test_closed_by_volume():
-    """A closed box is settled by its volume with no rays, and comes out the same as the vote."""
-    centre = np.array([0.5, 0.5, 0.5])
-    assert all(outward(outie.orient(box(), closed_by_volume=True), centre))
-    assert all(outward(outie.orient(box(), closed_by_volume=True, rays_total=0, rays_minimum=0), centre))  # no rays at all
-    out = outie.orient(courtyard(), closed_by_volume=True)  # open pieces still go to the vote
-    assert normal(out[0])[1] < 0 and normal(out[1])[1] > 0
-
-
 def keyhole_roof():
     """Four walls, no floor, and a roof with a courtyard cut into it as one ring that runs in through a slit: the
     roof wound wrong, and the courtyard walls wound wrong too."""

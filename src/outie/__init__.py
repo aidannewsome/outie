@@ -44,13 +44,12 @@ def orient_mesh(vertices, faces, **settings):
     return out
 
 
-def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, closed_by_volume=False, occluders=()):
+def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, occluders=()):
     """libigl's function and outputs: per triangle, whether to turn it, and the patch it belongs to.
 
-    Two additions libigl does not have, both off unless asked for. closed_by_volume: a patch whose every edge
-    exactly two faces share is a closed surface, and its signed volume says which way it faces exactly, with no
-    rays. occluders: triangles as corners, k by 3 by 3, that rays can hit but that are never turned, for the
-    ground a model stands on or the things around it; without them a model with no floor is as open below as above.
+    One addition libigl does not have: occluders, triangles as corners, k by 3 by 3, that rays can hit but that are
+    never turned, for the ground a model stands on or the things around it; without them a model with no floor is
+    as open below as above.
     """
     V = np.asarray(vertices, dtype=float)
     F = np.asarray(faces, dtype=int)
@@ -68,15 +67,8 @@ def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, f
     area = np.bincount(patch, weights=double_area, minlength=patches)
     rays = np.maximum((rays_total * area / max(area.sum(), 1e-300)).astype(int), rays_minimum)
     rays[area == 0] = 0
-    settled = np.zeros(patches, dtype=bool)
-    vote = np.zeros(patches, dtype=bool)
-    if closed_by_volume and not facet_wise:
-        volume = signed_volumes(V, FF, patch, patches)
-        settled = closed(FF, patch, patches) & (np.abs(volume) > 1e-9 * np.maximum(area, 1e-300))
-        vote[settled] = volume[settled] < 0
-        rays[settled] = 0
     if not rays.any():
-        return vote[patch] ^ np.any(FF != F, axis=1), patch
+        return np.any(FF != F, axis=1), patch
     t = sample(patch, double_area, rays, rng)  # rays start on triangles chosen by area within their patch, at random points on them, Turk 1990
     s, u = rng.random(len(t)), rng.random(len(t))
     root = np.sqrt(u)
@@ -98,27 +90,7 @@ def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, f
         escaped = np.bincount(by, weights=front_escaped, minlength=patches), np.bincount(by, weights=back_escaped, minlength=patches)
         distance = np.bincount(by, weights=front_distance, minlength=patches), np.bincount(by, weights=back_distance, minlength=patches)
         voted = (escaped[0] < escaped[1]) | ((escaped[0] == escaped[1]) & (distance[0] < distance[1]))
-    vote[~settled] = voted[~settled]
-    return vote[patch] ^ np.any(FF != F, axis=1), patch  # a face bfs_orient already turned is reported the other way round
-
-
-def closed(FF, patch, patches):
-    """Per patch, whether every edge is shared by exactly two of its faces: a closed surface."""
-    edges = np.sort(np.concatenate([FF[:, [1, 2]], FF[:, [2, 0]], FF[:, [0, 1]]]), axis=1)
-    _, inverse, count = np.unique(edges, axis=0, return_inverse=True, return_counts=True)
-    open_edge = count[np.asarray(inverse).reshape(-1)] != 2
-    broken = np.zeros(patches, dtype=bool)
-    broken[np.tile(patch, 3)[open_edge]] = True
-    return ~broken
-
-
-def signed_volumes(V, FF, patch, patches):
-    """Per patch, six times its signed volume about its own centre, positive when its faces point out."""
-    centre = np.zeros((patches, 3))
-    np.add.at(centre, patch, V[FF].mean(axis=1))
-    centre /= np.maximum(np.bincount(patch, minlength=patches), 1)[:, None]
-    a, b, c = (V[FF[:, i]] - centre[patch] for i in range(3))
-    return np.bincount(patch, weights=np.einsum("ij,ij->i", a, np.cross(b, c)), minlength=patches)
+    return voted[patch] ^ np.any(FF != F, axis=1), patch  # a face bfs_orient already turned is reported the other way round
 
 
 def sample(patch, double_area, rays, rng):
