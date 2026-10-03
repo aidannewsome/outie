@@ -1,7 +1,7 @@
 [project]
 name = "outie"
-version = "0.1.7"
-description = "Turn every face of a mesh to face out, like an outie, even when the mesh is not closed. A port of libigl's reorient_facets_raycast."
+version = "0.1.8"
+description = "Turn every face of a triangle mesh to face out, like an outie, even when the mesh is not closed. A port of libigl's reorient_facets_raycast."
 readme = "README.md"
 license = "MPL-2.0"
 license-files = ["LICENSE"]
@@ -9,7 +9,6 @@ authors = [{ name = "Aidan Newsome", email = "aidan.newsome@me.com" }]
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
-    "shapely>=2.0",
     "trimesh>=4.0",
     "embreex>=4.0",
 ]

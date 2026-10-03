@@ -17,26 +17,20 @@ Embree, through trimesh.
 ```python
 import outie
 
-polygons = outie.orient(polygons)              # a list of rings, each n by 3
-faces = outie.orient_mesh(vertices, faces)     # triangles: vertices n by 3, faces m by 3
+flip, patch = outie.reorient_facets_raycast(vertices, faces)   # vertices n by 3, faces m by 3 triangles
+faces[flip] = faces[flip][:, ::-1]                              # turn the ones that pointed in
 ```
 
-Both return what they were given, with the faces that pointed in turned round. Polygons are cut into
-triangles first, each as one consistent piece, and a ring that touches or crosses itself, as a ring with a hole
-cut into it does, is mended before it is cut. Cleaning the mesh, dropping collapsed or doubled faces, splitting
-faces that are not flat, is the caller's job before calling. Underneath are libigl's
-own two functions, with its names, arguments and outputs, for callers who need to know which faces moved
-or which patch each belongs to:
+libigl's function, with its name, arguments and outputs: per triangle, whether to turn it, and the patch it belongs
+to. Its settings are keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`, `facet_wise`,
+`use_parity`, and `seed` so a run repeats.
 
-```python
-flip, patch = outie.reorient_facets_raycast(vertices, faces)   # per triangle: turn it? and its patch
-faces, patch = outie.bfs_orient(faces)                         # faces wound to agree, and their patches
-```
+One addition: `occluders`, triangles as corners, k by 3 by 3, that rays can hit but that are never turned: the ground a
+model stands on, or the things around it. A model with no floor is otherwise as open below as above. The ground belongs
+exactly at the model's lowest point, not below it.
 
-The paper's settings are keyword arguments with libigl's defaults: `rays_total`, `rays_minimum`,
-`facet_wise`, `use_parity`, and `seed` so a run repeats. One addition: `occluders` are faces that block rays
-but are never turned, for the ground a model stands on or the things around it, since a model with no floor is
-otherwise as open below as above.
+Outie takes triangles, as the paper does. Cutting polygons into triangles, mending rings that cross themselves, and
+deciding a polygon from its triangles are the caller's.
 
 ## Licence
 

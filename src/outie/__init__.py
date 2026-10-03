@@ -1,47 +1,22 @@
-"""Turns every face of a mesh to point out, even when the mesh is not closed.
+"""Turns every face of a triangle mesh to point out, even when the mesh is not closed.
 
 A port of libigl's reorient_facets_raycast at commit 7100764, the reference code for Takayama, Jacobson, Kavan and
 Sorkine-Hornung, "A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray
 Casting", 2014. Faces that share edges are gathered into patches that agree. Then rays are shot from
 random points on each patch, spread by area, off its front and its back; the side from which more rays
 escape is the outside, and on a tie the side whose rays travel further before hitting anything.
+
+One function, libigl's, with its name, arguments and outputs, and one addition: occluders, faces rays can hit that are
+never turned, such as the ground a model stands on. Cutting polygons into triangles, and mending them, is the caller's.
 """
 
 from collections import deque
 
 import numpy as np
-import shapely
 import trimesh
 
 GRAZING = 0.1  # a ray closer than this to lying in its face is drawn again
 EPSILON = 1e-4  # how far along itself a ray starts, so it does not hit its own face
-
-
-def orient(polygons, occluders=(), **settings):
-    """Polygons, each an n by 3 ring, with those that pointed in turned round.
-
-    occluders are polygons that block rays but are not turned: the ground a model stands on, or its neighbours.
-    """
-    triangles, owner = triangulate(polygons)
-    if not len(triangles):
-        return [np.asarray(p) for p in polygons]
-    corners = triangles.reshape(-1, 3)
-    vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
-    faces = np.asarray(inverse).reshape(-1, 3)
-    blocking, _ = triangulate(occluders)
-    flip, _ = reorient_facets_raycast(vertices, faces, occluders=blocking, **settings)
-    area = np.linalg.norm(np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]), axis=1)
-    turned = np.bincount(owner, weights=area * flip, minlength=len(polygons)) > np.bincount(owner, weights=area, minlength=len(polygons)) / 2  # a polygon turns with the greater part of its area, not with a sliver of it
-    return [np.asarray(p)[::-1] if t else np.asarray(p) for p, t in zip(polygons, turned)]
-
-
-def orient_mesh(vertices, faces, **settings):
-    """Triangles, m by 3 into vertices n by 3, with those that pointed in turned round. occluders, if given, are triangles as corners, k by 3 by 3."""
-    faces = np.asarray(faces, dtype=int)
-    flip, _ = reorient_facets_raycast(vertices, faces, **settings)
-    out = faces.copy()
-    out[flip] = out[flip][:, ::-1]
-    return out
 
 
 def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, occluders=()):
@@ -178,77 +153,3 @@ def shares_directed_edge(f, n):
     n0, n1, n2 = int(n[0]), int(n[1]), int(n[2])
     mine = {(f1, f2), (f2, f0), (f0, f1)}
     return (n1, n2) in mine or (n2, n0) in mine or (n0, n1) in mine
-
-
-def triangulate(polygons):
-    """Every polygon as triangles wound as it is, and the polygon each came from.
-
-    Every triangle agrees with its polygon's own normal, so a polygon is one consistent piece whatever its shape: a
-    quad is split along the diagonal that lies inside it, and a longer ring is triangulated in its plane after
-    mending, since a ring that touches or crosses itself, as a ring with a hole cut into it does, would otherwise
-    fan into triangles wound both ways. A polygon with no area gives no triangles.
-    """
-    rings = [np.asarray(f, dtype=float) for f in polygons]
-    out, owner = [], []
-    quads = [k for k, f in enumerate(rings) if len(f) == 4]
-    if quads:
-        q = np.stack([rings[k] for k in quads])
-        normal = np.cross(q, np.roll(q, -1, axis=1)).sum(axis=1)
-        first = np.stack([q[:, [0, 1, 2]], q[:, [0, 2, 3]]], axis=1)  # split along 0-2
-        second = np.stack([q[:, [1, 2, 3]], q[:, [1, 3, 0]]], axis=1)  # split along 1-3
-        agree = np.einsum("qtk,qk->qt", np.cross(first[:, :, 1] - first[:, :, 0], first[:, :, 2] - first[:, :, 0]), normal) > 0
-        split = np.where(agree.all(axis=1)[:, None, None, None], first, second)  # the diagonal inside a dart is the one both halves agree on
-        has_area = np.linalg.norm(normal, axis=1) > 0
-        out += list(split[has_area].reshape(-1, 3, 3))
-        owner += np.repeat(np.asarray(quads)[has_area], 2).tolist()
-    rest = [k for k, f in enumerate(rings) if len(f) >= 3 and len(f) != 4]
-    if rest:
-        triangles = [k for k in rest if len(rings[k]) == 3]
-        out += [rings[k] for k in triangles]
-        owner += triangles
-        longer = [k for k in rest if len(rings[k]) > 4]
-        for k, normal in zip(longer, newell([rings[k] for k in longer])):
-            if not np.linalg.norm(normal):
-                continue
-            pieces = in_plane(rings[k], normal)
-            against = np.cross(pieces[:, 1] - pieces[:, 0], pieces[:, 2] - pieces[:, 0]) @ normal < 0
-            pieces[against] = pieces[against][:, ::-1]
-            out += list(pieces)
-            owner += [k] * len(pieces)
-    return (np.array(out), np.array(owner)) if out else (np.zeros((0, 3, 3)), np.zeros(0, int))
-
-
-
-def newell(rings):
-    """Each ring's normal, twice its area long, by Newell's method, for every ring at once."""
-    if not rings:
-        return np.zeros((0, 3))
-    corners = np.concatenate(rings)
-    starts = np.cumsum([0, *map(len, rings)])
-    following = np.arange(1, len(corners) + 1)
-    following[starts[1:] - 1] = starts[:-1]  # each ring's last corner is followed by its first
-    return np.add.reduceat(np.cross(corners, corners[following]), starts[:-1], axis=0)
-
-
-def in_plane(f, normal):
-    """A ring of five or more corners as triangles: mended where it touches or crosses itself, then a constrained
-    Delaunay triangulation in the plane it lies flattest in. Corners the mending adds are lifted back onto that plane."""
-    drop = int(np.argmax(np.abs(normal)))
-    keep = [i for i in range(3) if i != drop]
-    flat = shapely.Polygon(f[:, keep])
-    if not flat.is_valid:
-        flat = shapely.make_valid(flat, method="structure", keep_collapsed=False)
-    parts = [p for p in shapely.get_parts(flat) if p.geom_type == "Polygon" and p.area > 0]
-    if not parts:
-        return np.stack([np.stack([f[0], f[i], f[i + 1]]) for i in range(1, len(f) - 1)])
-    corners = np.concatenate([shapely.get_coordinates(shapely.constrained_delaunay_triangles(p)).reshape(-1, 4, 2)[:, :3] for p in parts])
-    lifted = np.empty((*corners.shape[:2], 3))
-    lifted[:, :, keep] = corners
-    lifted[:, :, drop] = (np.dot(normal, f[0]) - corners @ normal[keep]) / normal[drop]
-    keys = np.round(f[:, keep], 6) @ [1, 1j]  # each corner of the ring as one number, to find it among the triangles' corners
-    order = np.argsort(keys)
-    at = np.searchsorted(keys[order], (np.round(corners, 6) @ [1, 1j]).reshape(-1))
-    at = np.clip(at, 0, len(keys) - 1)
-    known = keys[order][at] == (np.round(corners, 6) @ [1, 1j]).reshape(-1)
-    lifted.reshape(-1, 3)[known] = f[order[at[known]]]  # a corner of the ring keeps its own height, off the plane or not
-    return lifted
