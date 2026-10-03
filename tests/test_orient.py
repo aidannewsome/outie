@@ -1,4 +1,4 @@
-"""The shapes the method must get right. Each is quads with some wound wrong, cut into two triangles each; every face must come out facing out."""
+"""The shapes the method must get right. Each is faces with some wound wrong, given as polygons; every face must come out facing out."""
 
 import numpy as np
 import pytest
@@ -61,12 +61,13 @@ def fins():
     return [wall, *fins, overhang, back]
 
 
-def mesh(quads):
-    """Quads as a triangle mesh: shared corners, two triangles a quad, each wound as its quad."""
-    corners = np.vstack(quads)
+def mesh(polygons):
+    """Polygons as a mesh: their corners once each, and each polygon as a ring of corner numbers."""
+    corners = np.vstack(polygons)
     vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
-    rings = np.asarray(inverse).reshape(-1).reshape(len(quads), 4)
-    return vertices, np.vstack([[[r[0], r[1], r[2]], [r[0], r[2], r[3]]] for r in rings])
+    inverse = np.asarray(inverse).reshape(-1)
+    ends = np.cumsum([len(p) for p in polygons])
+    return vertices, [inverse[e - len(p):e] for p, e in zip(polygons, ends)]
 
 
 def triangles(quads):
@@ -74,11 +75,12 @@ def triangles(quads):
     return np.vstack([[[q[0], q[1], q[2]], [q[0], q[2], q[3]]] for q in quads])
 
 
-def reoriented(quads, **settings):
-    """Each quad turned round where both its triangles were."""
-    vertices, faces = mesh(quads)
+def reoriented(polygons, **settings):
+    """Each polygon turned round where outie says so."""
+    vertices, faces = mesh(polygons)
     flip, _ = outie.reorient_facets_raycast(vertices, faces, **settings)
-    return [q[::-1] if flip[2 * i] and flip[2 * i + 1] else q for i, q in enumerate(quads)]
+    assert len(flip) == len(polygons)
+    return [p[::-1] if f else p for p, f in zip(polygons, flip)]
 
 
 def test_box():
@@ -90,9 +92,40 @@ def test_box():
 def test_outputs():
     vertices, faces = mesh(box())
     flip, patch = outie.reorient_facets_raycast(vertices, faces)
-    assert flip.dtype == bool and flip.shape == (12,)
+    assert flip.dtype == bool and flip.shape == (6,)  # one answer a face
     assert patch.max() == 0  # one closed box, one patch
-    assert flip.sum() == 4  # the two wrong quads, two triangles each
+    assert flip.sum() == 2  # the two wrong faces
+
+
+def test_triangles_as_libigl():
+    """Given triangles, faces are triangles: an m by 3 array works as libigl's does."""
+    vertices, faces = mesh(box())
+    triangles = np.vstack([[[r[0], r[1], r[2]], [r[0], r[2], r[3]]] for r in faces])
+    flip, patch = outie.reorient_facets_raycast(vertices, triangles)
+    assert flip.shape == (12,) and flip.sum() == 4 and patch.max() == 0
+
+
+def test_any_number_of_corners():
+    """A roof with a courtyard cut into it as one ring running in through a slit, its corners touching themselves, is
+    one face: it comes out facing up with its walls, and the court's walls face into the court."""
+    outer = [(0, 0), (30, 0), (30, 30), (0, 30)]
+    inner = [(10, 10), (10, 20), (20, 20), (20, 10)]
+    ring = [*outer, (0, 0), (10, 10), *inner[1:], (10, 10)]
+    roof = np.array([(x, y, 9.0) for x, y in ring])[::-1]  # wound to face down: wrong
+    walls = [quad([0, 0, 0], [30, 0, 0], [30, 0, 9], [0, 0, 9]), quad([30, 0, 0], [30, 30, 0], [30, 30, 9], [30, 0, 9]), quad([30, 30, 0], [0, 30, 0], [0, 30, 9], [30, 30, 9]), quad([0, 30, 0], [0, 0, 0], [0, 0, 9], [0, 30, 9])]
+    court = [quad([10, 10, 0], [20, 10, 0], [20, 10, 9], [10, 10, 9]), quad([20, 10, 0], [20, 20, 0], [20, 20, 9], [20, 10, 9]), quad([20, 20, 0], [10, 20, 0], [10, 20, 9], [20, 20, 9]), quad([10, 20, 0], [10, 10, 0], [10, 10, 9], [10, 20, 9])]
+    out = reoriented([roof, *walls, *[c[::-1] for c in court]])
+    assert normal(out[0])[2] > 0  # the roof faces up
+    assert normal(out[5])[1] > 0  # the courtyard's south wall faces north, into the court
+
+
+def test_a_reflex_corner():
+    """An L-shaped roof, wound wrong, over its walls: a ring with a reflex corner is cut inside itself and decided whole."""
+    plan = [(0, 0), (20, 0), (20, 10), (10, 10), (10, 20), (0, 20)]
+    roof = np.array([(x, y, 6.0) for x, y in plan])[::-1]
+    walls = [quad([*a, 0], [*b, 0], [*b, 6], [*a, 6]) for a, b in zip(plan, plan[1:] + plan[:1])]
+    out = reoriented([roof, *walls])
+    assert normal(out[0])[2] > 0
 
 
 def test_open_box():

@@ -1,7 +1,7 @@
 [project]
 name = "outie"
-version = "0.1.9"
-description = "Turn every face of a triangle mesh to face out, like an outie, even when the mesh is not closed. libigl's reorient_facets_raycast, in Rust."
+version = "0.1.10"
+description = "Turn every face of a polygon mesh to face out, like an outie, even when the mesh is not closed. libigl's reorient_facets_raycast, in Rust."
 readme = "README.md"
 license = "MPL-2.0"
 license-files = ["LICENSE"]

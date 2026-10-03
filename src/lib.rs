@@ -2,9 +2,11 @@
 //! "A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting", 2014, in Rust, with
 //! one addition: occluders, triangles rays can hit that are never turned, such as the ground a model stands on.
 //!
-//! Faces that share edges are gathered into patches that agree. Rays are shot from random points on each patch, spread
-//! by area, off its front and its back; the side from which more rays escape is the outside, and on a tie the side
-//! whose rays travel further before hitting anything.
+//! The paper's faces are polygons, and so are outie's: a face is a ring of corners, any number of them. Faces that share
+//! edges are gathered into patches that agree. Each face is cut into triangles only to cast rays from: rays are shot
+//! from random points on each patch, spread by area, off its front and its back; the side from which more rays escape
+//! is the outside, and on a tie the side whose rays travel further before hitting anything. A face is decided with its
+//! patch, whole. Given triangles, it is libigl's function exactly.
 
 use std::collections::{HashMap, VecDeque};
 
@@ -35,35 +37,37 @@ impl Default for Settings {
     }
 }
 
-/// Per triangle, whether to turn it round, and the patch it belongs to.
-pub fn reorient_facets_raycast(vertices: &[[f64; 3]], faces: &[[usize; 3]], occluders: &[[[f64; 3]; 3]], settings: &Settings) -> (Vec<bool>, Vec<usize>) {
+/// Per face, whether to turn it round, and the patch it belongs to.
+pub fn reorient_facets_raycast(vertices: &[[f64; 3]], faces: &[Vec<usize>], occluders: &[[[f64; 3]; 3]], settings: &Settings) -> (Vec<bool>, Vec<usize>) {
     if faces.is_empty() {
         return (vec![], vec![]);
     }
     let (wound, patch) = if settings.facet_wise { (faces.to_vec(), (0..faces.len()).collect()) } else { bfs_orient(faces) };
     let turned: Vec<bool> = wound.iter().zip(faces).map(|(a, b)| a != b).collect(); // a face bfs_orient turned is reported the other way round
-    let normals: Vec<[f64; 3]> = wound.iter().map(|f| cross(sub(vertices[f[1]], vertices[f[0]]), sub(vertices[f[2]], vertices[f[0]]))).collect();
+    let (triangles, owner) = triangulate(vertices, &wound); // for casting rays only, each wound as its face
+    let normals: Vec<[f64; 3]> = triangles.iter().map(|f| cross(sub(vertices[f[1]], vertices[f[0]]), sub(vertices[f[2]], vertices[f[0]]))).collect();
     let double_area: Vec<f64> = normals.iter().map(|n| norm(*n)).collect();
+    let in_patch: Vec<usize> = owner.iter().map(|f| patch[*f]).collect();
     let patches = patch.iter().max().map_or(0, |p| p + 1);
     let mut area = vec![0.0; patches];
-    for (p, a) in patch.iter().zip(&double_area) {
+    for (p, a) in in_patch.iter().zip(&double_area) {
         area[*p] += a;
     }
     let total: f64 = area.iter().sum::<f64>().max(1e-300);
-    let rays_total = settings.rays_total.unwrap_or(faces.len() * 100) as f64;
+    let rays_total = settings.rays_total.unwrap_or(triangles.len() * 100) as f64;
     let rays: Vec<usize> = area.iter().map(|a| if *a == 0.0 { 0 } else { ((rays_total * a / total) as usize).max(settings.rays_minimum) }).collect();
     if rays.iter().all(|r| *r == 0) {
         return (turned, patch);
     }
 
     let mut rng = Pcg64::seed_from_u64(settings.seed);
-    let starts = sample(&patch, &double_area, &rays, &mut rng); // rays start on triangles chosen by area within their patch, at random points on them, Turk 1990
+    let starts = sample(&in_patch, &double_area, &rays, &mut rng); // rays start on triangles chosen by area within their patch, at random points on them, Turk 1990
     let origins: Vec<[f64; 3]> = starts
         .iter()
         .map(|t| {
             let (s, u): (f64, f64) = (rng.random(), rng.random());
             let root = u.sqrt();
-            let [a, b, c] = wound[*t].map(|i| vertices[i]);
+            let [a, b, c] = triangles[*t].map(|i| vertices[i]);
             let w = [1.0 - root, (1.0 - s) * root, s * root];
             [0, 1, 2].map(|k| w[0] * a[k] + w[1] * b[k] + w[2] * c[k])
         })
@@ -71,7 +75,7 @@ pub fn reorient_facets_raycast(vertices: &[[f64; 3]], faces: &[[usize; 3]], occl
     let directions: Vec<[f64; 3]> = starts.iter().map(|t| random_direction(scale(normals[*t], 1.0 / double_area[*t]), &mut rng)).collect();
 
     let mut points: Vec<Vector> = vertices.iter().map(|v| Vector::new(v[0], v[1], v[2])).collect();
-    let mut indices: Vec<[u32; 3]> = wound.iter().map(|f| f.map(|i| i as u32)).collect();
+    let mut indices: Vec<[u32; 3]> = triangles.iter().map(|f| f.map(|i| i as u32)).collect();
     for triangle in occluders {
         let at = points.len() as u32;
         points.extend(triangle.iter().map(|v| Vector::new(v[0], v[1], v[2])));
@@ -93,7 +97,7 @@ pub fn reorient_facets_raycast(vertices: &[[f64; 3]], faces: &[[usize; 3]], occl
     let mut front = vec![(0.0, 0.0); patches]; // per patch: rays escaped, or crossings odd, and distance travelled
     let mut back = vec![(0.0, 0.0); patches];
     for (t, (f, b)) in starts.iter().zip(cast) {
-        let p = patch[*t];
+        let p = in_patch[*t];
         front[p].0 += f.0;
         front[p].1 += f.1;
         back[p].0 += b.0;
@@ -103,6 +107,50 @@ pub fn reorient_facets_raycast(vertices: &[[f64; 3]], faces: &[[usize; 3]], occl
         .map(|p| if settings.use_parity { front[p].0 > back[p].0 } else { front[p].0 < back[p].0 || (front[p].0 == back[p].0 && front[p].1 < back[p].1) })
         .collect();
     (patch.iter().zip(&turned).map(|(p, t)| voted[*p] ^ t).collect(), patch)
+}
+
+/// Every face as triangles wound as it is, and the face each came from: a triangle as it is, a longer ring cut by
+/// earcut in the plane it lies flattest in. A face with no area gives none.
+fn triangulate(vertices: &[[f64; 3]], faces: &[Vec<usize>]) -> (Vec<[usize; 3]>, Vec<usize>) {
+    let mut cutter = earcut::Earcut::<f64>::new();
+    let mut cut: Vec<u32> = Vec::new();
+    let (mut triangles, mut owner) = (Vec::new(), Vec::new());
+    for (f, ring) in faces.iter().enumerate() {
+        if ring.len() == 3 {
+            triangles.push([ring[0], ring[1], ring[2]]);
+            owner.push(f);
+            continue;
+        }
+        if ring.len() < 3 {
+            continue;
+        }
+        let normal = newell(vertices, ring);
+        if norm(normal) == 0.0 {
+            continue;
+        }
+        let drop = (0..3).max_by(|a, b| normal[*a].abs().total_cmp(&normal[*b].abs())).unwrap_or(2);
+        let keep: Vec<usize> = (0..3).filter(|k| *k != drop).collect();
+        cutter.earcut(ring.iter().map(|i| [vertices[*i][keep[0]], vertices[*i][keep[1]]]), &[] as &[u32], &mut cut);
+        for piece in cut.chunks_exact(3) {
+            let mut triangle = [ring[piece[0] as usize], ring[piece[1] as usize], ring[piece[2] as usize]];
+            if dot(cross(sub(vertices[triangle[1]], vertices[triangle[0]]), sub(vertices[triangle[2]], vertices[triangle[0]])), normal) < 0.0 {
+                triangle.swap(1, 2); // wound as its face
+            }
+            triangles.push(triangle);
+            owner.push(f);
+        }
+    }
+    (triangles, owner)
+}
+
+/// A ring's normal, twice its area long, by Newell's method, which holds for a bent or a concave ring.
+fn newell(vertices: &[[f64; 3]], ring: &[usize]) -> [f64; 3] {
+    let mut n = [0.0; 3];
+    for (k, i) in ring.iter().enumerate() {
+        let (a, b) = (vertices[*i], vertices[ring[(k + 1) % ring.len()]]);
+        n = add(n, cross(a, b));
+    }
+    n
 }
 
 /// The triangle each ray starts on: rays[p] of them in patch p, each triangle as likely as its area.
@@ -169,24 +217,29 @@ fn parity(scene: &TriMesh, origin: [f64; 3], direction: [f64; 3]) -> (f64, f64) 
     ((crossings % 2) as f64, 0.0)
 }
 
-/// libigl's bfs_orient: faces wound to agree with their neighbours across the edges exactly two share, and the patch
-/// each belongs to, numbered in the order the patches are found.
-pub fn bfs_orient(faces: &[[usize; 3]]) -> (Vec<[usize; 3]>, Vec<usize>) {
+/// libigl's bfs_orient, for faces of any number of corners: faces wound to agree with their neighbours across the edges
+/// exactly two share, and the patch each belongs to, numbered in the order the patches are found.
+pub fn bfs_orient(faces: &[Vec<usize>]) -> (Vec<Vec<usize>>, Vec<usize>) {
     let mut sharing: HashMap<(usize, usize), Vec<usize>> = HashMap::new();
-    for (f, [a, b, c]) in faces.iter().enumerate() {
-        for (x, y) in [(*b, *c), (*c, *a), (*a, *b)] {
-            sharing.entry((x.min(y), x.max(y))).or_default().push(f);
+    for (f, ring) in faces.iter().enumerate() {
+        for (x, y) in edges(ring) {
+            if x != y {
+                sharing.entry((x.min(y), x.max(y))).or_default().push(f);
+            }
         }
     }
     let mut neighbours: Vec<Vec<usize>> = vec![vec![]; faces.len()];
     for owners in sharing.values() {
         if let [a, b] = owners[..] {
-            neighbours[a].push(b);
-            neighbours[b].push(a);
+            if a != b {
+                neighbours[a].push(b);
+                neighbours[b].push(a);
+            }
         }
     }
     for list in &mut neighbours {
         list.sort_unstable();
+        list.dedup();
     }
     let mut wound = faces.to_vec();
     let mut patch = vec![usize::MAX; faces.len()];
@@ -203,7 +256,7 @@ pub fn bfs_orient(faces: &[[usize; 3]]) -> (Vec<[usize; 3]>, Vec<usize>) {
                     continue;
                 }
                 patch[n] = next;
-                if shares_directed_edge(wound[f], wound[n]) {
+                if shares_directed_edge(&wound[f], &wound[n]) {
                     wound[n].reverse();
                 }
                 queue.push_back(n);
@@ -214,10 +267,15 @@ pub fn bfs_orient(faces: &[[usize; 3]]) -> (Vec<[usize; 3]>, Vec<usize>) {
     (wound, patch)
 }
 
-/// Whether two triangles run a shared edge the same way, which means one of them is wound against the other.
-fn shares_directed_edge(f: [usize; 3], n: [usize; 3]) -> bool {
-    let mine = [(f[1], f[2]), (f[2], f[0]), (f[0], f[1])];
-    [(n[1], n[2]), (n[2], n[0]), (n[0], n[1])].iter().any(|e| mine.contains(e))
+/// A ring's edges, each as it runs, the last back to the first.
+fn edges(ring: &[usize]) -> impl Iterator<Item = (usize, usize)> + '_ {
+    ring.iter().enumerate().map(|(k, a)| (*a, ring[(k + 1) % ring.len()]))
+}
+
+/// Whether two faces run a shared edge the same way, which means one of them is wound against the other.
+fn shares_directed_edge(f: &[usize], n: &[usize]) -> bool {
+    let mine: Vec<(usize, usize)> = edges(f).collect();
+    edges(n).any(|e| mine.contains(&e))
 }
 
 fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
@@ -245,17 +303,18 @@ fn norm(a: [f64; 3]) -> f64 {
 }
 
 mod python {
-    use numpy::{IntoPyArray, PyArray1, PyReadonlyArray2, PyReadonlyArray3};
+    use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3};
     use pyo3::prelude::*;
 
-    /// libigl's function and outputs: per triangle, whether to turn it, and the patch it belongs to.
+    /// libigl's function and outputs, for faces of any number of corners: per face, whether to turn it, and its patch.
     #[pyfunction]
-    #[pyo3(signature = (vertices, faces, rays_total=None, rays_minimum=10, facet_wise=false, use_parity=false, seed=0, occluders=None))]
-    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (vertices, corners, counts, rays_total=None, rays_minimum=10, facet_wise=false, use_parity=false, seed=0, occluders=None))]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     fn reorient_facets_raycast<'py>(
         py: Python<'py>,
         vertices: PyReadonlyArray2<'py, f64>,
-        faces: PyReadonlyArray2<'py, i64>,
+        corners: PyReadonlyArray1<'py, i64>,
+        counts: PyReadonlyArray1<'py, i64>,
         rays_total: Option<usize>,
         rays_minimum: usize,
         facet_wise: bool,
@@ -264,7 +323,17 @@ mod python {
         occluders: Option<PyReadonlyArray3<'py, f64>>,
     ) -> PyResult<(Bound<'py, PyArray1<bool>>, Bound<'py, PyArray1<i64>>)> {
         let vertices: Vec<[f64; 3]> = vertices.as_array().rows().into_iter().map(|r| [r[0], r[1], r[2]]).collect();
-        let faces: Vec<[usize; 3]> = faces.as_array().rows().into_iter().map(|r| [r[0] as usize, r[1] as usize, r[2] as usize]).collect();
+        let corners = corners.as_array();
+        let mut faces = Vec::with_capacity(counts.len()?);
+        let mut at = 0;
+        for count in counts.as_array().iter() {
+            let next = at + *count as usize;
+            if next > corners.len() {
+                return Err(pyo3::exceptions::PyValueError::new_err("The faces' corners run out before their counts do."));
+            }
+            faces.push(corners.slice(numpy::ndarray::s![at..next]).iter().map(|i| *i as usize).collect::<Vec<usize>>());
+            at = next;
+        }
         let occluders: Vec<[[f64; 3]; 3]> = occluders
             .map(|o| o.as_array().outer_iter().map(|t| [0, 1, 2].map(|i| [t[[i, 0]], t[[i, 1]], t[[i, 2]]])).collect())
             .unwrap_or_default();
