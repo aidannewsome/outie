@@ -9,7 +9,8 @@ rays escape is the outside, and on a tie the side whose rays travel further befo
 with its patch, whole.
 
 One function, libigl's, with its name, arguments and outputs, and one addition: occluders, faces rays can hit that are
-never turned, such as the ground a model stands on. Mending a face that crosses itself is the caller's.
+never turned, such as the ground a model stands on. A face may have holes: its outer ring first, then each hole.
+Mending a face that crosses itself is the caller's.
 """
 
 import numpy as np
@@ -18,23 +19,25 @@ from outie import _core
 
 
 def reorient_facets_raycast(vertices, faces, rays_total=None, rays_minimum=10, facet_wise=False, use_parity=False, seed=0, occluders=()):
-    """libigl's function and outputs, for faces of any number of corners: per face, whether to turn it, and the patch it
-    belongs to.
+    """libigl's function and outputs, for faces of any number of corners and holes: per face, whether to turn it, and
+    the patch it belongs to.
 
-    vertices are n by 3; faces are rings of corner numbers, an m by k array or a list of any lengths; occluders are
-    triangles as corners, k by 3 by 3, that rays can hit but that are never turned. rays_total counts the rays for the
-    whole mesh, 100 a triangle of it when not given.
+    vertices are n by 3. A face is a ring of corner numbers, or its outer ring and then its holes, each a ring; faces
+    are a list of them, or an m by k array of rings. occluders are triangles as corners, k by 3 by 3, that rays can hit
+    but that are never turned. rays_total counts the rays for the whole mesh, 100 a triangle of it when not given.
     """
     if isinstance(faces, np.ndarray) and faces.ndim == 2:
-        counts = np.full(len(faces), faces.shape[1], dtype=np.int64)
-        corners = faces.astype(np.int64).ravel()
+        rings = list(faces.astype(np.int64))
+        face_sizes = np.ones(len(faces), dtype=np.int64)
     else:
-        rings = [np.asarray(f, dtype=np.int64).ravel() for f in faces]
-        counts = np.array([len(r) for r in rings], dtype=np.int64)
-        corners = np.concatenate(rings) if rings else np.zeros(0, dtype=np.int64)
+        each = [[f] if np.ndim(f[0]) == 0 else list(f) for f in faces]
+        rings = [np.asarray(r, dtype=np.int64).ravel() for face in each for r in face]
+        face_sizes = np.array([len(face) for face in each], dtype=np.int64)
+    ring_sizes = np.array([len(r) for r in rings], dtype=np.int64)
+    corners = np.concatenate(rings) if rings else np.zeros(0, dtype=np.int64)
     blocking = np.ascontiguousarray(np.asarray(occluders, dtype=np.float64).reshape(-1, 3, 3))
     return _core.reorient_facets_raycast(
         np.ascontiguousarray(np.asarray(vertices, dtype=np.float64).reshape(-1, 3)),
-        np.ascontiguousarray(corners), counts,
+        np.ascontiguousarray(corners), ring_sizes, face_sizes,
         rays_total, rays_minimum, facet_wise, use_parity, seed, blocking if len(blocking) else None,
     )

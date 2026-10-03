@@ -119,6 +119,25 @@ def test_any_number_of_corners():
     assert normal(out[5])[1] > 0  # the courtyard's south wall faces north, into the court
 
 
+def test_a_face_with_a_hole():
+    """A roof with a courtyard as a hole, wound wrong, over walls inside and out: the roof faces up, the hole stays a
+    hole, and no ray leaves from where the court is open."""
+    outer = [(0, 0), (30, 0), (30, 30), (0, 30)]
+    inner = [(10, 10), (10, 20), (20, 20), (20, 10)]  # the other way round, as a hole runs
+    roof = [np.array([(x, y, 9.0) for x, y in outer])[::-1], np.array([(x, y, 9.0) for x, y in inner])[::-1]]
+    walls = [quad([*a, 0], [*b, 0], [*b, 9], [*a, 9]) for a, b in zip(outer, outer[1:] + outer[:1])]
+    court = [quad([*b, 0], [*a, 0], [*a, 9], [*b, 9]) for a, b in zip(inner, inner[1:] + inner[:1])]
+    corners = np.vstack([*roof, *walls, *court])
+    vertices, inverse = np.unique(np.round(corners, 6), axis=0, return_inverse=True)
+    inverse = np.asarray(inverse).reshape(-1)
+    sizes = [len(r) for r in [*roof, *walls, *court]]
+    rings = np.split(inverse, np.cumsum(sizes)[:-1])
+    faces = [[rings[0], rings[1]], *rings[2:]]  # the roof: its outer ring and its hole
+    flip, _ = outie.reorient_facets_raycast(vertices, faces)
+    assert len(flip) == 9
+    assert flip[0]  # the roof, wound to face down, turns to face up
+
+
 def test_a_reflex_corner():
     """An L-shaped roof, wound wrong, over its walls: a ring with a reflex corner is cut inside itself and decided whole."""
     plan = [(0, 0), (20, 0), (20, 10), (10, 10), (10, 20), (0, 20)]

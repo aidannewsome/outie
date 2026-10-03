@@ -1,6 +1,6 @@
 [package]
 name = "outie"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2024"
 description = "Turn every face of a triangle mesh to face out, even when the mesh is not closed: libigl's reorient_facets_raycast in Rust."
 license = "MPL-2.0"
