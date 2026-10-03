@@ -1,4 +1,5 @@
-# On a version tag, build the package and publish it to PyPI by trusted publishing: no token is stored anywhere.
+# On a version tag: a wheel for each system built from the Rust core, tested where it can run, and published to PyPI
+# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.11, through the stable ABI.
 name: Release
 
 on:
@@ -6,20 +7,65 @@ on:
     tags: ["v*"]
 
 jobs:
-  release:
+  wheels:
+    strategy:
+      matrix:
+        include:
+          - { runner: ubuntu-22.04, target: x86_64, test: true }
+          - { runner: ubuntu-22.04-arm, target: aarch64, test: true }
+          - { runner: macos-latest, target: aarch64, test: true }
+          - { runner: macos-15-intel, target: x86_64, test: true }
+          - { runner: windows-latest, target: x64, test: true }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: The tag must be the version in pyproject.toml and Cargo.toml
+        shell: bash
+        run: |
+          version=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          crate=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          test "v$version" = "${GITHUB_REF_NAME}" && test "$version" = "$crate" || { echo "tag ${GITHUB_REF_NAME}, pyproject $version, Cargo $crate"; exit 1; }
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist
+          manylinux: auto
+      - name: Test the wheel
+        if: matrix.test
+        shell: bash
+        run: |
+          python -m pip install --find-links dist outie pytest
+          python -m pytest -q tests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.runner }}-${{ matrix.target }}
+          path: dist
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+  publish:
+    needs: [wheels, sdist]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
-      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - name: The tag must be the version in pyproject.toml
-        run: |
-          version=$(uv version --short)
-          test "v$version" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} is not v$version"; exit 1; }
-      - run: uv sync --dev
-      - run: uv run pytest -q
-      - run: uv build
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - uses: pypa/gh-action-pypi-publish@release/v1

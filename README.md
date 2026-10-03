@@ -2,15 +2,15 @@
 
 Turns every face of a mesh to point out, like an outie, even when the mesh is not closed.
 
-A Python port of libigl's `reorient_facets_raycast`, the reference code for Takayama, Jacobson, Kavan and
+A port of libigl's `reorient_facets_raycast`, written in Rust and used from Python, the reference code for Takayama, Jacobson, Kavan and
 Sorkine-Hornung, [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/paper.pdf), 2014.
 
 ## How
 
 ![Rays shot off both sides of a wall: the side they escape from is the outside](docs/how.svg)
 
-Faces that share edges are gathered into patches first, so a patch is decided as one. Rays are traced by
-Embree, through trimesh.
+Faces that share edges are gathered into patches first, so a patch is decided as one. Rays are traced in
+Rust by parry, in parallel on every core, and numpy arrays pass in without being copied.
 
 ## Use
 
@@ -31,6 +31,11 @@ exactly at the model's lowest point, not below it.
 
 Outie takes triangles, as the paper does. Cutting polygons into triangles, mending rings that cross themselves, and
 deciding a polygon from its triangles are the caller's.
+
+## Build
+
+The core is Rust, in `src/lib.rs`, bound to Python by PyO3 and built by maturin; `uv sync` builds it, and
+`uv run pytest` tests it. Releases are a wheel for each system, so installing needs no Rust.
 
 ## Licence
 
