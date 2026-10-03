@@ -364,7 +364,7 @@ mod python {
         Ok((flip.into_pyarray(py), patch.into_iter().map(|p| p as i64).collect::<Vec<_>>().into_pyarray(py)))
     }
 
-    #[pymodule]
+    #[pymodule(gil_used = false)]  // nothing shared between calls, so a free-threaded Python runs it on many threads at once
     fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module.add_function(wrap_pyfunction!(reorient_facets_raycast, module)?)
     }

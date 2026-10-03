@@ -1,5 +1,6 @@
 # On a version tag: a wheel for each system built from the Rust core, tested where it can run, and published to PyPI
-# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.11, through the stable ABI.
+# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.11, through the stable ABI;
+# a second serves free-threaded Python 3.14, which the stable ABI does not reach.
 name: Release
 
 on:
@@ -21,7 +22,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: |
+            3.14t
+            3.11
       - name: The tag must be the version in pyproject.toml and Cargo.toml
         shell: bash
         run: |
@@ -33,12 +36,20 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist
           manylinux: auto
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist --interpreter python3.14t
+          manylinux: auto
       - name: Test the wheel
         if: matrix.test
         shell: bash
         run: |
           python -m pip install --find-links dist outie pytest
           python -m pytest -q tests
+          python3.14t -m pip install --find-links dist outie pytest
+          python3.14t -m pytest -q tests
+          python3.14t -c "import sys, outie; assert not sys._is_gil_enabled(), 'outie turned the lock back on'"
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.runner }}-${{ matrix.target }}
