@@ -1,5 +1,5 @@
 # On a version tag: a wheel for each system built from the Rust core, tested where it can run, and published to PyPI
-# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.11, through the stable ABI;
+# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.12, through the stable ABI;
 # a second serves free-threaded Python 3.14, which the stable ABI does not reach.
 name: Release
 
@@ -24,7 +24,7 @@ jobs:
         with:
           python-version: |
             3.14t
-            3.11
+            3.12
       - name: The tag must be the version in pyproject.toml and Cargo.toml
         shell: bash
         run: |

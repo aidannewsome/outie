@@ -1,0 +1,25 @@
+# On every push and pull request: built from source on Linux and tested with the oldest and newest Python and
+# free-threaded Python, which must keep its lock off. Every system is tested when a release is built.
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14", "3.14t"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: uv sync
+      - run: uv run pytest -q
+      - name: Free-threaded Python keeps its lock off
+        if: matrix.python == '3.14t'
+        run: uv run python -c "import sys, outie; assert not sys._is_gil_enabled(), 'outie turned the lock back on'"
