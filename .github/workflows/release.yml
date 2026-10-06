@@ -1,5 +1,5 @@
 # On a version tag: a wheel for each system built from the Rust core, tested where it can run, and published to PyPI
-# by trusted publishing, no token stored anywhere. One wheel a system serves every Python from 3.12, through the stable ABI;
+# by trusted publishing, no token stored anywhere, and attached to a GitHub release noting the commits since the last. One wheel a system serves every Python from 3.12, through the stable ABI;
 # a second serves free-threaded Python 3.14, which the stable ABI does not reach.
 name: Release
 
@@ -67,6 +67,27 @@ jobs:
         with:
           name: sdist
           path: dist
+
+  release:
+    needs: [wheels, sdist]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Notes from the commits since the last release
+        run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          git log --format='- %s' ${previous:+$previous..}"$GITHUB_REF_NAME" >> notes.md
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   publish:
     needs: [wheels, sdist]
