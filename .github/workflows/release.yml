@@ -12,10 +12,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: ubuntu-22.04, target: x86_64, test: true }
-          - { runner: ubuntu-22.04-arm, target: aarch64, test: true }
+          - { runner: ubuntu-22.04, target: x86_64, linux: auto, test: true }
+          - { runner: ubuntu-22.04-arm, target: aarch64, linux: auto, test: true }
+          - { runner: ubuntu-22.04, target: x86_64, linux: musllinux_1_2, test: false }  # musl wheels, for Alpine, do not run on the glibc runner
+          - { runner: ubuntu-22.04-arm, target: aarch64, linux: musllinux_1_2, test: false }
           - { runner: macos-latest, target: aarch64, test: true }
-          - { runner: macos-15-intel, target: x86_64, test: true }
           - { runner: windows-latest, target: x64, test: true }
     runs-on: ${{ matrix.runner }}
     steps:
@@ -35,12 +36,12 @@ jobs:
         with:
           target: ${{ matrix.target }}
           args: --release --out dist
-          manylinux: auto
+          manylinux: ${{ matrix.linux || 'auto' }}
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
           args: --release --out dist --interpreter python3.14t
-          manylinux: auto
+          manylinux: ${{ matrix.linux || 'auto' }}
       - name: Test the wheel
         if: matrix.test
         shell: bash
@@ -52,7 +53,7 @@ jobs:
           python3.14t -c "import sys, outie; assert not sys._is_gil_enabled(), 'outie turned the lock back on'"
       - uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.runner }}-${{ matrix.target }}
+          name: wheels-${{ matrix.runner }}-${{ matrix.target }}-${{ matrix.linux || 'native' }}
           path: dist
 
   sdist:
