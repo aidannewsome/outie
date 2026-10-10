@@ -43,6 +43,8 @@ import outie
 faces = outie.reorient(vertices, faces)  # the same faces, each turned to point out
 ```
 
+As in libigl's function, faces are triangles, and removing duplicate triangles, which the paper's command does with `-u`, is left to the caller.
+
 To know which faces turned, the paper's function gives it per face, with the component each was decided with:
 
 ```python
@@ -66,7 +68,6 @@ outie.measure_backfacingness(vertices, faces)  # the paper's measure: 0 when no 
 - **Speed.** libigl's function gathers each component's faces by scanning every face, casts its rays on one thread, and collects every hit along each ray. Outie gathers the faces once, casts on every core, and keeps only the first hit, which is all the vote uses.
 - **Names.** `vertices` and `faces` for libigl's `V` and `F`, and component throughout for what the paper, and libigl in places, also call a patch. The options keep libigl's names.
 - **Defaults.** `facet_wise=True`, as the paper's results are made; libigl's Python binding defaults to `False`.
-- **Input.** Triangles only. Removing duplicate triangles, the paper's `-u`, is the caller's job.
 
 ## Results
 
