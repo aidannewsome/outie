@@ -1,3 +1,10 @@
+// Ported from libigl's reorient_facets_raycast.cpp, bfs_orient.cpp and orientable_patches.cpp,
+// Copyright (C) 2013 Alec Jacobson <alecjacobson@gmail.com>
+//
+// This Source Code Form is subject to the terms of the Mozilla Public License
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
+// obtain one at http://mozilla.org/MPL/2.0/.
+
 //! Outie: libigl's `reorient_facets_raycast`, the reference code for Takayama, Jacobson, Kavan and Sorkine-Hornung,
 //! "A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting", 2014, in Rust.
 //!
