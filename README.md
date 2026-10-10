@@ -2,7 +2,7 @@
 
 Turns each face of a triangle mesh to point out, even when the mesh is open.
 
-Outie is [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)) by [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), 2014, ported from libigl's `reorient_facets_raycast` to Rust and Embree. All credit goes to them and libigl's contributors. For a geometry processing library, use libigl; to only turn faces, outie is small, fast and has wheels for every system.
+Outie is [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)) by [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), 2014, ported from [libigl](https://github.com/libigl/libigl)'s [`reorient_facets_raycast`](https://github.com/libigl/libigl/blob/main/include/igl/embree/reorient_facets_raycast.cpp) to Rust and [Embree](https://github.com/RenderKit/embree). All credit goes to them and [libigl's contributors](https://github.com/libigl/libigl/graphs/contributors). For a geometry processing library, use [libigl](https://libigl.github.io/). To only turn faces, outie is small, fast and has wheels for every system.
 
 I use it on city massing datasets like Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/), drawn by many people in tools that hide which way faces point, and often not closed, so the usual repairs fail. With faces pointing out, a model needs no two-sided materials: renderers cull back faces, light falls on the right side, glTF and game engines show it as intended, and volumes and analysis work.
 
@@ -46,7 +46,7 @@ flip, component = outie.reorient_facets_raycast(vertices, faces)  # [False, True
 |---|---|---|
 | `facet_wise` | `True` | Decide each face alone. `False` decides faces joined by edges together. |
 | `use_parity` | `False` | Count the faces each ray crosses instead of whether it escapes. For closed meshes. |
-| `rays_total` | 100 a face | Fewer is faster; see Figure 4. |
+| `rays_total` | 100 a face | Fewer is faster, see Figure 4. |
 | `rays_minimum` | `10` | Rays at least for each component. |
 | `seed` | `0` | Repeats the random rays. |
 
@@ -58,7 +58,7 @@ outie.measure_backfacingness(vertices, faces)  # the paper's measure: 0 when no 
 
 - **Speed.** libigl's function finds every hit along each ray, though the vote uses only the first. Stopping at the first takes its C++ from 26 s to 2.5 s on Figure 1's mass. Outie does that and casts on every core.
 - **Names.** `vertices` and `faces` for libigl's `V` and `F`, and component throughout for what the paper, and libigl in places, also call a patch. The options keep libigl's names.
-- **Defaults.** `facet_wise=True`, as the paper's results are made; libigl's Python binding defaults to `False`.
+- **Defaults.** `facet_wise=True`, as the paper's results are made. libigl's Python binding defaults to `False`.
 
 ## Results
 
@@ -105,7 +105,7 @@ The data is 60 masses from the City of Toronto's [3D Massing](https://open.toron
 
 ![Two masses decided component by component and face by face](figures/components.png)
 
-*Figure 9. `facet_wise=False`, left of each pair, against the default, right. As the paper found, how well joined faces vote together depends on how a model was built: the first building is joined badly, so one vote turns whole wrong groups, and deciding each face alone is better; the second is built cleanly, so joining works.*
+*Figure 9. `facet_wise=False`, left of each pair, against the default, right. As the paper found, how well joined faces vote together depends on how a model was built: the first building is joined badly, so one vote turns whole wrong groups, and deciding each face alone is better. The second is built cleanly, so joining works.*
 
 ## Acknowledgements
 
