@@ -1,10 +1,10 @@
 [project]
 name = "outie"
-version = "0.1.13"
-description = "Turn every face of a polygon mesh to face out, like an outie, even when the mesh is not closed. libigl's reorient_facets_raycast, in Rust."
+version = "0.2.0"
+description = "Turn every face of a triangle mesh to face out, even when the mesh is not closed: the ray casting method of Takayama et al. 2014, libigl's reorient_facets_raycast, in Rust with Embree."
 readme = "README.md"
-license = "MPL-2.0"
-license-files = ["LICENSE"]
+license = "MPL-2.0 AND Apache-2.0"  # outie, and the Embree its wheels carry
+license-files = ["LICENSE", "LICENSE-EMBREE"]
 authors = [{ name = "Aidan Newsome", email = "aidan.newsome@me.com" }]
 requires-python = ">=3.12"  # SPEC 0: each Python three years from its release
 dependencies = [
@@ -19,7 +19,15 @@ Reference = "https://github.com/libigl/libigl/blob/main/include/igl/embree/reori
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.6.2",
     "pytest>=8",
+    "ruff>=0.17.0",
+]
+figures = [
+    "libigl>=2.6",  # the reference, and orient_outward, to compare against
+    "matplotlib>=3.9",
+    "networkx>=3",  # trimesh needs it for fix_normals
+    "trimesh>=4",  # fix_normals, to compare against
 ]
 
 [build-system]
@@ -30,3 +38,13 @@ build-backend = "maturin"
 python-source = "python"
 module-name = "outie._core"
 features = ["pyo3/extension-module"]
+
+[tool.ruff]
+line-length = 200  # the code's lines are long by habit; ruff checks mistakes and the order of imports and leaves the length
+src = ["python", "scripts"]  # the scripts import each other as their own
+
+[tool.ruff.lint]
+select = ["F", "I"]  # mistakes (unused imports, undefined names) and the order of imports, named so a new ruff adds none
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "Cargo.toml" }, { file = "build.rs" }, { dir = "embree/lib" }, { file = "src/**/*.rs" }]  # a change to the Rust rebuilds outie

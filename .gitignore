@@ -5,3 +5,6 @@ __pycache__/
 *.so
 dist/
 /target
+docs/papers/
+.ruff_cache/
+/embree
