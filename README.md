@@ -1,43 +1,125 @@
 # Outie
 
-Turns every face of a polygon mesh to point out, like an outie, even when the mesh is not closed.
+Turns each face of a triangle mesh so that it points out, even when the mesh is open.
 
-A port of libigl's `reorient_facets_raycast`, written in Rust and used from Python, the reference code for Takayama, Jacobson, Kavan and
-Sorkine-Hornung, [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/paper.pdf), 2014.
+Outie is the method of Kenshi Takayama, Alec Jacobson, Ladislav Kavan and Olga Sorkine-Hornung, [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
 
-## How
+Architectural models are often created with software such as Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all. In inexperienced hands this produces many low-quality models, like those the paper found in online model libraries, and many are not closed or watertight, so typical repair methods fail.
 
-![Rays shot off both sides of a wall: the side they escape from is the outside](docs/how.svg)
+![One mass as published and as each method leaves it, with times](figures/methods.png)
 
-Faces that share edges are gathered into patches first, so a patch is decided as one. Rays are traced in
-Rust by parry, in parallel on every core, and numpy arrays pass in without being copied.
+*Figure 1. One mass, 29,878 triangles, as published and as each method leaves it, with the time each took.*
+
+| Method | Backfacingness | Time |
+|---|---|---|
+| As published | 0.5121 | |
+| [trimesh](https://github.com/mikedh/trimesh) `fix_normals` | 0.4169 | 0.73 s |
+| [libigl](https://github.com/libigl/libigl) `orient_outward` | 0.1991 | 0.01 s |
+| libigl `reorient_facets_raycast`, the paper's code | 0.0035 | 30.46 s |
+| **outie** | **0.0011** | **0.25 s** |
+
+*Table 1. The methods of Figure 1.*
 
 ## Use
+
+```
+pip install outie
+```
 
 ```python
 import outie
 
-flip, patch = outie.reorient_facets_raycast(vertices, faces)   # vertices n by 3; faces rings of corner numbers
-faces = [f[::-1] if turn else f for f, turn in zip(faces, flip)]
+# vertices: corner positions, n by 3   [[0, 0, 0], [1, 0, 0], [1, 1, 0], ...]
+# faces:    triangles, m by 3          [[0, 2, 1], [0, 3, 2], ...]
+faces = outie.reorient(vertices, faces)  # the same faces, each turned to point out
 ```
 
-libigl's function, with its name, arguments and outputs: per face, whether to turn it, and the patch it belongs to. The
-paper's faces are polygons, and so are outie's: a face is a ring of corners, any number of them, or its outer ring and
-then its holes, each a ring; faces are given as a list of them or an m by k array; given triangles, it is libigl's function exactly. Each face is cut into triangles only to
-cast rays from, and is decided whole, with its patch. The settings are keyword arguments with libigl's defaults:
-`rays_total`, `rays_minimum`, `facet_wise`, `use_parity`, and `seed` so a run repeats.
+To know which faces turned, the paper's function gives it per face, with the component each was decided with:
 
-One addition: `occluders`, triangles as corners, k by 3 by 3, that rays can hit but that are never turned: the ground a
-model stands on, or the things around it. A model with no floor is otherwise as open below as above. The ground belongs
-exactly at the model's lowest point, not below it.
+```python
+flip, component = outie.reorient_facets_raycast(vertices, faces)  # [False, True, ...], [0, 1, ...]
+```
 
-Mending a face that crosses itself is the caller's.
+| Option | Default | |
+|---|---|---|
+| `facet_wise` | `True` | Decide each face alone. `False` decides faces joined by edges together. |
+| `use_parity` | `False` | Count the faces each ray crosses instead of whether it escapes. For closed meshes. |
+| `rays_total` | 100 a face | Fewer is faster; see Figure 4. |
+| `rays_minimum` | `10` | Rays at least for each component. |
+| `seed` | `0` | Repeats the random rays. |
 
-## Build
+```python
+outie.measure_backfacingness(vertices, faces)  # the paper's measure: 0 when no face shows its back
+```
 
-The core is Rust, in `src/lib.rs`, bound to Python by PyO3 and built by maturin; `uv sync` builds it, and
-`uv run pytest` tests it. Releases are a wheel for each system, so installing needs no Rust.
+## Results
+
+The data is 60 masses from the City of Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/), 318 to 49,118 triangles each, in [`data/`](data/).
+
+![Six views, fronts red and backs blue](figures/backfacingness.png)
+
+*Figure 2. Backfacingness: the share of a mesh, seen from six sides, that shows the backs of faces, blue.*
+
+| 60 masses | Backfacingness | Time |
+|---|---|---|
+| As published | 0.4233 ± 0.1590 | |
+| **outie** | **0.0140 ± 0.0409** | **5.0 s** |
+| `facet_wise=False` | 0.0233 ± 0.0528 | 5.5 s |
+| `use_parity=True` | 0.0426 ± 0.0489 | 26.4 s |
+
+*Table 2. Apple M1 Max, 10 cores. `use_parity=True` is slower because each ray counts every face it passes, not just the first it hits.*
+
+![Every mass before and after](figures/scores.png)
+
+*Figure 3. Every mass, as published and after outie. The few left high are mostly floorless masses: the view from beneath sees into them whichever way their faces turn. Seen from above, the worst, at 0.30, falls to 0.07, and the next four to under 0.05.*
+
+![Backfacingness against time for 1 to 500 rays a face](figures/rays.png)
+
+*Figure 4. Rays a face against backfacingness and time, all 60 masses, with `rays_minimum=1` so each setting's count is what it says.*
+
+![Three masses before and after](figures/before-after-pairs.png)
+
+*Figure 5. The three masses outie improves most.*
+
+![Three masses after outie that stay worst](figures/remaining.png)
+
+*Figure 6. The three masses outie leaves worst: mostly thin, single-sided parts, where neither way round is better.*
+
+![The largest mass, whole and cut open](figures/cutaway.png)
+
+*Figure 7. The largest mass, as published and after, whole above and cut open below: faces left inside a model are turned too, though not all of them correctly.*
+
+## Method
+
+![The default outside and inside a closed room, and use_parity=True](figures/method.svg)
+
+*Figure 8. How the default and `use_parity=True` decide. `facet_wise=False` is Figure 9.*
+
+![Two masses decided component by component and face by face](figures/components.png)
+
+*Figure 9. `facet_wise=False`, left of each pair, against the default, right. As the paper found, how well joined faces vote together depends on how a model was built: the first building is joined badly, so one vote turns whole wrong groups, and deciding each face alone is better; the second is built cleanly, so joining works.*
+
+## Acknowledgements
+
+- Kenshi Takayama, Alec Jacobson, Ladislav Kavan and Olga Sorkine-Hornung, for the method and its code.
+- [libigl](https://github.com/libigl/libigl), whose code outie ports.
+- [Embree](https://github.com/RenderKit/embree), which casts the rays.
+- The City of Toronto. Contains information licensed under the Open Government Licence - Toronto.
+
+## Citation
+
+```bibtex
+@article{Takayama2014Orientation,
+  author  = {Kenshi Takayama and Alec Jacobson and Ladislav Kavan and Olga Sorkine-Hornung},
+  title   = {A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting},
+  journal = {Journal of Computer Graphics Techniques (JCGT)},
+  volume  = {3},
+  number  = {4},
+  pages   = {53--63},
+  year    = {2014}
+}
+```
 
 ## Licence
 
-MPL-2.0, as libigl is: this is a port of its code, taken at libigl commit 7100764. The method is its authors'.
+MPL-2.0, as libigl's. The wheels carry Embree, under Apache-2.0, [LICENSE-EMBREE](LICENSE-EMBREE). The paper is under CC BY-ND 3.0, the data under the Open Government Licence - Toronto.
