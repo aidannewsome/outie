@@ -12,7 +12,7 @@ case "$(uname -m)" in
   *) options=() ;;  # ARM: NEON, Embree's default there
 esac
 case "$(uname -s)" in
-  MINGW*|MSYS*) options+=(-DCMAKE_CXX_FLAGS_INIT=/MP -DCMAKE_C_FLAGS_INIT=/MP) ;;  # MSVC compiles a project's files one at a time unless asked
+  MINGW*|MSYS*) options+=(-DCMAKE_CXX_FLAGS_INIT=-MP -DCMAKE_C_FLAGS_INIT=-MP) ;;  # MSVC compiles a project's files one at a time unless asked, -MP as Git Bash would turn /MP into a path
 esac
 cmake -S "$SOURCE" -B "$SOURCE/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
   -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${options[@]+"${options[@]}"} \

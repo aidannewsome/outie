@@ -11,6 +11,7 @@ on:
 jobs:
   wheels:
     strategy:
+      fail-fast: false  # one system's failure leaves the others to finish
       matrix:
         include:
           - { runner: ubuntu-22.04, target: x86_64, linux: 2_28, test: true }
