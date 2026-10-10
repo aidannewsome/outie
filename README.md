@@ -2,7 +2,7 @@
 
 Turns each face of a triangle mesh so that it points out, even when the mesh is open.
 
-Outie is the method of Kenshi Takayama, Alec Jacobson, Ladislav Kavan and Olga Sorkine-Hornung, [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
+Outie is the method of [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
 
 Architectural models are often created with software such as Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all. In inexperienced hands this produces many low-quality models, like those the paper found in online model libraries, and many are not closed or watertight, so typical repair methods fail.
 
