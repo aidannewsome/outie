@@ -4,16 +4,16 @@ Turns each face of a triangle mesh so that it points out, even when the mesh is 
 
 Outie is the method of [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
 
-All credit goes to them for the method, and to Alec Jacobson and libigl's contributors for the code. Outie only makes it fast to run from Python, with wheels for every system.
+All credit goes to them for the method, and to Alec Jacobson and libigl's contributors for the code. If you need a geometry processing library, use libigl. If you only need to turn faces, outie is one small, fast package with wheels for every system.
 
-It is meant for cities' 3D massing datasets assembled from many people's models, like the City of Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/). They are drawn in Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all, so faces point whichever way they were left, as in the online model libraries the paper studied. Many are not closed or watertight, so typical repair methods fail.
+I use it for cities' 3D massing datasets assembled from many people's models, like the City of Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/). They are drawn in Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all, so faces point whichever way they were left, as in the online model libraries the paper studied. Many are not closed or watertight, so typical repair methods fail.
 
-Turned out quickly, a model needs no two-sided materials, which helps in many ways:
+With every face pointing out, a model needs no two-sided materials:
 
-- renderers can cull back faces, drawing half as much;
-- light and shadow fall on the side that faces out;
-- glTF, 3D Tiles and game engines draw single-sided faces as intended;
-- volumes, booleans, exports for printing and energy and daylight analysis read the faces' direction.
+- renderers cull back faces and draw half as much;
+- light and shadow fall on the right side;
+- glTF, 3D Tiles and game engines show it as intended;
+- volumes, booleans, printing and analysis work.
 
 ![One mass as published and as each method leaves it, with times](figures/methods.png)
 
@@ -22,12 +22,12 @@ Turned out quickly, a model needs no two-sided materials, which helps in many wa
 | Method | Backfacingness | Time |
 |---|---|---|
 | As published | 0.5121 | |
-| [trimesh](https://github.com/mikedh/trimesh) `fix_normals` | 0.4169 | 0.73 s |
+| [trimesh](https://github.com/mikedh/trimesh) `fix_normals` | 0.4169 | 0.77 s |
 | [libigl](https://github.com/libigl/libigl) `orient_outward` | 0.1991 | 0.01 s |
-| libigl `reorient_facets_raycast`, the paper's code | 0.0035 | 30.46 s |
-| **outie** | **0.0011** | **0.25 s** |
+| libigl `reorient_facets_raycast`, the paper's code | 0.0011 | 31.26 s |
+| **outie** | **0.0011** | **0.24 s** |
 
-*Table 1. The methods of Figure 1.*
+*Table 1. The methods of Figure 1, libigl's and outie's with the same settings.*
 
 ## Use
 
@@ -65,7 +65,7 @@ outie.measure_backfacingness(vertices, faces)  # the paper's measure: 0 when no 
 
 ## Differences from libigl
 
-- **Speed.** libigl's function gathers each component's faces by scanning every face, casts its rays on one thread, and collects every hit along each ray. Outie gathers the faces once, casts on every core, and keeps only the first hit, which is all the vote uses.
+- **Speed.** libigl's function finds every hit along each ray, though the vote uses only the first. Stopping at the first takes its C++ from 26 s to 2.5 s on Figure 1's mass. Outie does that and casts on every core.
 - **Names.** `vertices` and `faces` for libigl's `V` and `F`, and component throughout for what the paper, and libigl in places, also call a patch. The options keep libigl's names.
 - **Defaults.** `facet_wise=True`, as the paper's results are made; libigl's Python binding defaults to `False`.
 

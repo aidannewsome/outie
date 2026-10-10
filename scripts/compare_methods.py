@@ -39,7 +39,7 @@ def fix_with_trimesh(vertices: np.ndarray, triangles: np.ndarray) -> np.ndarray:
 METHODS = {  # others first, ours last, as comparisons are laid out
     "trimesh fix_normals": fix_with_trimesh,
     "libigl orient_outward": lambda v, f: igl.orient_outward(v, f, igl.orientable_patches(f)[:, None])[0],
-    "libigl reorient_facets_raycast": lambda v, f: turn(f, igl.embree.reorient_facets_raycast(v, f, rays_total=100 * len(f))[0]),
+    "libigl reorient_facets_raycast": lambda v, f: turn(f, igl.embree.reorient_facets_raycast(v, f, rays_total=100 * len(f), facet_wise=True)[0]),
     "outie": OUTIE["outie"],
 }
 
