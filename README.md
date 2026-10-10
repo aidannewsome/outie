@@ -4,6 +4,8 @@ Turns each face of a triangle mesh so that it points out, even when the mesh is 
 
 Outie is the method of [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
 
+All credit goes to them for the method, and to Alec Jacobson and libigl's contributors for the code. Outie only makes it fast to run from Python, with wheels for every system.
+
 Architectural models are often created with software such as Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all. In inexperienced hands this produces many low-quality models, like those the paper found in online model libraries, and many are not closed or watertight, so typical repair methods fail.
 
 ![One mass as published and as each method leaves it, with times](figures/methods.png)
@@ -51,6 +53,13 @@ flip, component = outie.reorient_facets_raycast(vertices, faces)  # [False, True
 ```python
 outie.measure_backfacingness(vertices, faces)  # the paper's measure: 0 when no face shows its back
 ```
+
+## Differences from libigl
+
+- **Speed.** libigl's function gathers each component's faces by scanning every face, casts its rays on one thread, and collects every hit along each ray. Outie gathers the faces once, casts on every core, and keeps only the first hit, which is all the vote uses.
+- **Names.** `vertices` and `faces` for libigl's `V` and `F`, and component throughout for what the paper, and libigl in places, also call a patch. The options keep libigl's names.
+- **Defaults.** `facet_wise=True`, as the paper's results are made; libigl's Python binding defaults to `False`.
+- **Input.** Triangles only. Removing duplicate triangles, the paper's `-u`, is the caller's job.
 
 ## Results
 
