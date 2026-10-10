@@ -22,8 +22,8 @@ jobs:
           - { runner: windows-latest, target: x64, test: true }
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: |
             3.14t
@@ -35,7 +35,7 @@ jobs:
           version=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
           crate=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           test "v$version" = "${GITHUB_REF_NAME}" && test "$version" = "$crate" || { echo "tag ${GITHUB_REF_NAME}, pyproject $version, Cargo $crate"; exit 1; }
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         id: embree
         with:
           path: embree
@@ -44,7 +44,7 @@ jobs:
         if: runner.os != 'Linux'
         shell: bash
         run: bash .github/build-embree.sh
-      - uses: actions/cache/save@v4  # saved now, so a later step's failure does not throw away a long build
+      - uses: actions/cache/save@v6  # saved now, so a later step's failure does not throw away a long build
         if: steps.embree.outputs.cache-hit != 'true' && runner.os != 'Linux'
         with:
           path: embree
@@ -70,20 +70,20 @@ jobs:
           python3.14t -m pip install --find-links dist outie pytest
           python3.14t -m pytest -q tests
           python3.14t -c "import sys, outie; assert not sys._is_gil_enabled(), 'outie turned the lock back on'"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.runner }}-${{ matrix.target }}-${{ matrix.linux || 'native' }}
           path: dist
 
   sdist:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
           args: --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist
@@ -91,14 +91,14 @@ jobs:
   release:
     if: github.ref_type == 'tag'
     needs: [wheels, sdist]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -113,12 +113,12 @@ jobs:
   publish:
     if: github.ref_type == 'tag'
     needs: [wheels, sdist]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
