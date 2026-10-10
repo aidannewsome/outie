@@ -1,19 +1,10 @@
 # Outie
 
-Turns each face of a triangle mesh so that it points out, even when the mesh is open.
+Turns each face of a triangle mesh to point out, even when the mesh is open.
 
-Outie is the method of [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)), 2014, ported from libigl's `reorient_facets_raycast` to Rust, with Embree casting the rays on every core.
+Outie is [A Simple Method for Correcting Facet Orientations in Polygon Meshes Based on Ray Casting](https://jcgt.org/published/0003/04/02/) ([PDF](docs/Takayama2014Orientation.pdf)) by [Kenshi Takayama](https://github.com/kenshi84), [Alec Jacobson](https://github.com/alecjacobson), [Ladislav Kavan](https://github.com/ladzin) and [Olga Sorkine-Hornung](https://github.com/sorkine), 2014, ported from libigl's `reorient_facets_raycast` to Rust and Embree. All credit goes to them and libigl's contributors. For a geometry processing library, use libigl; to only turn faces, outie is small, fast and has wheels for every system.
 
-All credit goes to them for the method, and to Alec Jacobson and libigl's contributors for the code. If you need a geometry processing library, use libigl. If you only need to turn faces, outie is one small, fast package with wheels for every system.
-
-I use it for cities' 3D massing datasets assembled from many people's models, like the City of Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/). They are drawn in Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all, so faces point whichever way they were left, as in the online model libraries the paper studied. Many are not closed or watertight, so typical repair methods fail.
-
-With every face pointing out, a model needs no two-sided materials:
-
-- renderers cull back faces and draw half as much;
-- light and shadow fall on the right side;
-- glTF, 3D Tiles and game engines show it as intended;
-- volumes, booleans, printing and analysis work.
+I use it on city massing datasets like Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/), drawn by many people in tools that hide which way faces point, and often not closed, so the usual repairs fail. With faces pointing out, a model needs no two-sided materials: renderers cull back faces, light falls on the right side, glTF and game engines show it as intended, and volumes and analysis work.
 
 ![One mass as published and as each method leaves it, with times](figures/methods.png)
 
