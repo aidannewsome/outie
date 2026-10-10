@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0  # setup-uv tags no major versions
       - run: uv run --frozen --only-dev pre-commit run --all-files --show-diff-on-failure
 
   test:
@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0  # setup-uv tags no major versions
         with:
           python-version: ${{ matrix.python }}
       - uses: actions/cache@v6
