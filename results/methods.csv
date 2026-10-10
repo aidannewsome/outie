@@ -1,0 +1,6 @@
+mass,method,backfacingness,seconds,cpu_seconds
+50H_SOUTH_2-0569,as published,0.5121,,
+50H_SOUTH_2-0569,trimesh fix_normals,0.4169,0.731,0.729
+50H_SOUTH_2-0569,libigl orient_outward,0.1991,0.010,0.011
+50H_SOUTH_2-0569,libigl reorient_facets_raycast,0.0035,30.461,30.395
+50H_SOUTH_2-0569,outie,0.0011,0.251,1.671
