@@ -8,11 +8,14 @@ test -e "$PREFIX/include/embree4/rtcore.h" && exit 0
 SOURCE="$(mktemp -d)"
 curl -sSL "https://github.com/RenderKit/embree/archive/refs/tags/v$VERSION.tar.gz" | tar -xz -C "$SOURCE" --strip-components=1
 case "$(uname -m)" in
-  x86_64|AMD64) isa=(-DEMBREE_MAX_ISA=AVX2) ;;
-  *) isa=() ;;  # ARM: NEON, Embree's default there
+  x86_64|AMD64) options=(-DEMBREE_MAX_ISA=AVX2) ;;
+  *) options=() ;;  # ARM: NEON, Embree's default there
+esac
+case "$(uname -s)" in
+  MINGW*|MSYS*) options+=(-DCMAKE_CXX_FLAGS_INIT=/MP -DCMAKE_C_FLAGS_INIT=/MP) ;;  # MSVC compiles a project's files one at a time unless asked
 esac
 cmake -S "$SOURCE" -B "$SOURCE/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PREFIX" -DCMAKE_INSTALL_LIBDIR=lib \
-  -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${isa[@]+"${isa[@]}"} \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${options[@]+"${options[@]}"} \
   -DEMBREE_STATIC_LIB=ON -DEMBREE_TASKING_SYSTEM=INTERNAL -DEMBREE_ISPC_SUPPORT=OFF -DEMBREE_TUTORIALS=OFF \
   -DEMBREE_RAY_PACKETS=OFF -DEMBREE_FILTER_FUNCTION=ON -DEMBREE_GEOMETRY_TRIANGLE=ON -DEMBREE_GEOMETRY_QUAD=OFF \
   -DEMBREE_GEOMETRY_CURVE=OFF -DEMBREE_GEOMETRY_SUBDIVISION=OFF -DEMBREE_GEOMETRY_USER=OFF \

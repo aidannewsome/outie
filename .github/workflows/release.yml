@@ -34,7 +34,8 @@ jobs:
           version=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
           crate=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           test "v$version" = "${GITHUB_REF_NAME}" && test "$version" = "$crate" || { echo "tag ${GITHUB_REF_NAME}, pyproject $version, Cargo $crate"; exit 1; }
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: embree
         with:
           path: embree
           key: embree-${{ matrix.runner }}-${{ matrix.linux || 'native' }}-${{ hashFiles('.github/build-embree.sh') }}
@@ -42,6 +43,11 @@ jobs:
         if: runner.os != 'Linux'
         shell: bash
         run: bash .github/build-embree.sh
+      - uses: actions/cache/save@v4  # saved now, so a later step's failure does not throw away a long build
+        if: steps.embree.outputs.cache-hit != 'true' && runner.os != 'Linux'
+        with:
+          path: embree
+          key: ${{ steps.embree.outputs.cache-primary-key }}
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}

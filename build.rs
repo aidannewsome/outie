@@ -67,7 +67,7 @@ fn link_static(lib: &Path) {
     }
     match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
         "macos" => println!("cargo:rustc-link-lib=dylib=c++"),
-        "windows" => {}
+        "windows" => println!("cargo:rustc-link-lib=dylib=advapi32"), // Embree asks Windows for large pages
         _ => println!("cargo:rustc-link-arg=-lstdc++"), // after Embree on the line, or the linker drops it as unneeded
     }
 }
