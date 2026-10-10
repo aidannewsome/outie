@@ -1,0 +1,22 @@
+# Checks run on the staged files at every git commit, after uv run pre-commit install. Ruff is the project's own,
+# pinned in uv.lock, and cargo the toolchain's, so the hook and CI run the same versions.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff
+        entry: uv run --frozen --only-dev ruff check --force-exclude  # --frozen: the hook never rewrites uv.lock; ruff needs no build of outie
+        language: system
+        types: [python]
+      - id: rustfmt
+        name: rustfmt
+        entry: cargo fmt --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+      - id: clippy
+        name: clippy, warnings as errors
+        entry: cargo clippy --release -- -D warnings
+        language: system
+        pass_filenames: false
+        types: [rust]
