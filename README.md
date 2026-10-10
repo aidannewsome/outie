@@ -6,7 +6,14 @@ Outie is the method of [Kenshi Takayama](https://github.com/kenshi84), [Alec Jac
 
 All credit goes to them for the method, and to Alec Jacobson and libigl's contributors for the code. Outie only makes it fast to run from Python, with wheels for every system.
 
-Architectural models are often created with software such as Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all. In inexperienced hands this produces many low-quality models, like those the paper found in online model libraries, and many are not closed or watertight, so typical repair methods fail.
+It is meant for cities' 3D massing datasets assembled from many people's models, like the City of Toronto's [3D Massing](https://open.toronto.ca/dataset/3d-massing/). They are drawn in Rhino, SketchUp and BIM tools, which hide face orientation by default or don't expose it at all, so faces point whichever way they were left, as in the online model libraries the paper studied. Many are not closed or watertight, so typical repair methods fail.
+
+Turned out quickly, a model needs no two-sided materials, which helps in many ways:
+
+- renderers can cull back faces, drawing half as much;
+- light and shadow fall on the side that faces out;
+- glTF, 3D Tiles and game engines draw single-sided faces as intended;
+- volumes, booleans, exports for printing and energy and daylight analysis read the faces' direction.
 
 ![One mass as published and as each method leaves it, with times](figures/methods.png)
 
