@@ -49,6 +49,9 @@ jobs:
         with:
           path: embree
           key: ${{ steps.embree.outputs.cache-primary-key }}
+      - name: The README's links pointed at this release on GitHub, for PyPI
+        shell: bash
+        run: python .github/pypi-readme.py
       - uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
@@ -79,6 +82,9 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: The README's links pointed at this release on GitHub, for PyPI
+        shell: bash
+        run: python3 .github/pypi-readme.py
       - uses: PyO3/maturin-action@v1
         with:
           command: sdist
