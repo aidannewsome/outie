@@ -1,6 +1,6 @@
 [package]
 name = "outie"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Turn every face of a triangle mesh to face out, even when the mesh is not closed: the ray casting method of Takayama et al. 2014, libigl's reorient_facets_raycast, in Rust with Embree."
 license = "MPL-2.0"
