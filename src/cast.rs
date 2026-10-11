@@ -45,7 +45,6 @@ struct FilterArguments {
 
 unsafe extern "C" {
     fn rtcNewDevice(config: *const c_char) -> *mut c_void;
-    fn rtcReleaseDevice(device: *mut c_void);
     fn rtcNewScene(device: *mut c_void) -> *mut c_void;
     fn rtcReleaseScene(scene: *mut c_void);
     fn rtcNewGeometry(device: *mut c_void, kind: u32) -> *mut c_void;
@@ -78,9 +77,27 @@ unsafe extern "C" fn skip_own(args: *const FilterArguments) {
     }
 }
 
+/// Embree's device, made once and shared by every scene, as libigl's EmbreeDevice is: a device starts Embree's
+/// threads, and Embree lets many threads build and trace scenes on one device at once.
+struct Device(*mut c_void);
+
+unsafe impl Send for Device {}
+unsafe impl Sync for Device {}
+
+static DEVICE: std::sync::OnceLock<Device> = std::sync::OnceLock::new();
+
+fn device() -> *mut c_void {
+    DEVICE
+        .get_or_init(|| {
+            let device = unsafe { rtcNewDevice(std::ptr::null()) };
+            assert!(!device.is_null(), "Embree could not start");
+            Device(device)
+        })
+        .0
+}
+
 /// A mesh handed to Embree, ready for rays.
 pub struct Scene {
-    device: *mut c_void,
     scene: *mut c_void,
 }
 
@@ -91,8 +108,7 @@ unsafe impl Sync for Scene {}
 impl Scene {
     pub fn new(vertices: &[[f64; 3]], triangles: &[[usize; 3]]) -> Self {
         unsafe {
-            let device = rtcNewDevice(std::ptr::null());
-            assert!(!device.is_null(), "Embree could not start");
+            let device = device();
             let scene = rtcNewScene(device);
             let geometry = rtcNewGeometry(device, GEOMETRY_TRIANGLE);
             let corners = rtcSetNewGeometryBuffer(
@@ -122,7 +138,7 @@ impl Scene {
             rtcAttachGeometry(scene, geometry);
             rtcReleaseGeometry(geometry);
             rtcCommitScene(scene);
-            Scene { device, scene }
+            Scene { scene }
         }
     }
 
@@ -160,7 +176,6 @@ impl Drop for Scene {
     fn drop(&mut self) {
         unsafe {
             rtcReleaseScene(self.scene);
-            rtcReleaseDevice(self.device);
         }
     }
 }
